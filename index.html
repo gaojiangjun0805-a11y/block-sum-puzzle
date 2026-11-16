@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>方块消除 · 最强大脑 S14</title>
+<style>
+  :root {
+    font-family: "Geist", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+    color: #f2f2eb;
+    background: #181a17;
+    --surface: #20231e;
+    --well: #161814;
+    --line: #383d33;
+    --muted: #a5ac9d;
+    --accent: #d6ee77;
+    --ink: #252b15;
+    --mono: "IBM Plex Mono", "Menlo", ui-monospace, monospace;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-width: 280px; }
+  button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  button:focus-visible { outline: 2px solid #e7f7aa; outline-offset: 3px; z-index: 1; }
+  [hidden] { display: none !important; }
+  .shell { width: min(1120px, 100% - 64px); margin: 0 auto; padding: 34px 0 28px; }
+  .masthead { display: flex; align-items: end; justify-content: space-between; gap: 22px; padding-bottom: 26px; }
+  .series { color: var(--accent); font-size: 12px; font-weight: 640; letter-spacing: .13em; margin: 0 0 9px; }
+  h1 { font-size: clamp(38px, 5vw, 60px); letter-spacing: -.055em; line-height: 1.08; margin: 0; font-weight: 760; }
+  .subtitle { margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .settings { display: flex; align-items: center; gap: 12px; }
+  .segment { display: flex; background: var(--well); border: 1px solid var(--line); border-radius: 9px; padding: 4px; }
+  .segment button { min-width: 52px; min-height: 36px; border: 0; border-radius: 5px; background: transparent; color: var(--muted); font-size: 13px; }
+  .segment button[aria-pressed="true"] { background: #353a2f; color: #f5f6ec; }
+  .segment button:hover { color: #fff; }
+  .settings [data-size] { font-family: var(--mono); }
+  .modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-block: 1px solid var(--line); margin-bottom: 20px; }
+  .modes button { border: 0; position: relative; background: transparent; min-height: 52px; font-size: 14px; font-weight: 640; color: var(--muted); }
+  .modes button + button { border-left: 1px solid var(--line); }
+  .modes button[aria-pressed="true"] { background: #262c1e; color: var(--accent); }
+  .modes button[aria-pressed="true"]::after { position: absolute; content: ""; inset: auto 0 -1px; height: 2px; background: var(--accent); }
+  .modes button:hover { color: var(--accent); }
+  .game-grid { display: grid; grid-template-columns: minmax(0, 1.28fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .game-grid.dual { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .panel { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .play { padding: 19px 22px 16px; }
+  .play-head, .side-head, .status-row, .game-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  h2 { margin: 0; font-size: 15px; font-weight: 660; }
+  .play-head { margin-bottom: 14px; }
+  .play-head .controls-caption { margin: 3px 0 0; color: var(--muted); font-size: 11px; }
+  .statline { display: flex; gap: 13px; color: var(--muted); font-size: 11px; text-align: right; }
+  .statline b { margin-left: 5px; color: #f2f2eb; font: 650 17px/1 var(--mono); }
+  [data-score-wrap] b { color: var(--accent); }
+  .board {
+    display: grid; grid-template-columns: repeat(var(--size), minmax(0, 1fr));
+    gap: clamp(4px, 1vw, 8px); padding: clamp(6px, 1.2vw, 11px); margin-inline: auto;
+    width: min(100%, 510px, max(290px, calc(100svh - 350px))); aspect-ratio: 1;
+    border: 1px solid #373c32; background: var(--well); border-radius: 13px;
+  }
+  .tile {
+    min-width: 0; min-height: 0; display: grid; place-items: center; position: relative;
+    border: 1px solid #484d42; border-radius: 8px; background: #30352d; color: #e8eade;
+    font: 650 clamp(22px, 5.7vw, 49px)/1 var(--mono); letter-spacing: -.08em;
+    touch-action: manipulation; padding: 0; cursor: default; overflow: hidden;
+  }
+  .board[data-size="5"] .tile { font-size: clamp(17px, 4.7vw, 38px); }
+  .tile.marked { background: #343e24; border-color: #87984d; color: #e8f7b2; }
+  .tile.empty { border-style: dashed; background: #1e221b; }
+  .tile.empty::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: #737a66; }
+  .tile.marked.empty::after { background: var(--accent); }
+  .tile.movable { cursor: pointer; border-color: #687060; }
+  .tile.movable.marked { border-color: #a1b861; }
+  @media (hover: hover) {
+    .tile.movable:hover { background: #444e3b; border-color: #9ba68d; }
+    .tile.movable.marked:hover { background: #485830; border-color: var(--accent); }
+  }
+  .tile span { pointer-events: none; }
+  .tile .sliding { animation: slide-in .13s ease-out both; }
+  @keyframes slide-in { from { opacity: .45; transform: translate(var(--dx), var(--dy)); } to { opacity: 1; transform: translate(0,0); } }
+  .tile.cleared { animation: clear .4s ease-out; }
+  @keyframes clear { 0%, 35% { background: var(--accent); color: var(--ink); } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001s !important; } }
+  .play-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px 12px; flex-wrap: wrap; min-height: 35px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .legend { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+  .swatch { width: 11px; height: 11px; background: #485830; border: 1px solid #9aac62; border-radius: 2px; }
+  .play-foot strong { color: var(--accent); font: 650 18px/1 var(--mono); }
+  .sum { display: flex; align-items: center; gap: 7px; }
+  .side { padding: 20px; }
+  .side-head { margin-bottom: 15px; }
+  .side-head p, .status-row p { margin: 0; color: var(--muted); font-size: 12px; }
+  .clock { display: flex; align-items: baseline; gap: 7px; }
+  .clock time { font: 600 22px/1 var(--mono); letter-spacing: -.04em; }
+  .reference {
+    min-height: 235px; display: grid; grid-template-columns: .9fr 1fr; align-items: center; gap: 12px;
+    background: #252e1d; border: 1px solid #46553a; border-radius: 11px; padding: 21px;
+  }
+  .target-label { font-size: 12px; display: block; color: #c8d4b3; }
+  .target-number { display: block; color: var(--accent); font: 680 clamp(44px, 6vw, 83px)/1.05 var(--mono); letter-spacing: -.09em; }
+  .shape { display: grid; grid-template-columns: repeat(var(--size), 1fr); width: 100%; aspect-ratio: 1; gap: 3%; }
+  .reference .shape { justify-self: end; max-width: 164px; }
+  .shape i { display: block; border-radius: 14%; background: #313b29; }
+  .shape i.filled { background: var(--accent); }
+  .side-notes { margin: 14px 0 0; color: #bcc4b6; font-size: 13px; line-height: 1.65; }
+  .status-row { min-height: 29px; margin-top: 14px; align-items: baseline; }
+  #status { color: #f0f3e6; line-height: 1.5; font-weight: 630; font-size: 14px; }
+  #status[data-result="true"] { color: var(--accent); }
+  .game-actions { margin-top: 14px; justify-content: start; flex-wrap: wrap; }
+  .action { min-height: 40px; border-radius: 7px; border: 1px solid #50584a; background: transparent; padding: 0 13px; color: #e8ecdf; font-size: 13px; font-weight: 550; }
+  .action:hover { background: #343b2e; }
+  .action.primary { background: var(--accent); border-color: var(--accent); color: var(--ink); }
+  .action.primary:hover { background: #e7f7a1; }
+  .arena { position: relative; height: 246px; overflow: hidden; border-radius: 11px; border: 1px solid #46553a; padding: 8px; background: var(--well); }
+  .arena::after { content: ""; position: absolute; pointer-events: none; inset: auto 0 0; border-bottom: 3px solid #66794e; }
+  .lanes { position: absolute; inset: 0 8px; display: grid; grid-template-columns: repeat(var(--lanes), minmax(0, 1fr)); gap: 7px; }
+  .lane { position: relative; border-inline: 1px dashed #353e30; }
+  .fall-card, .goal-button { background: #2b3622; color: var(--accent); border: 1px solid #546646; border-radius: 8px; }
+  .fall-card { position: absolute; top: 8px; inset-inline: 3px; min-height: 70px; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px; }
+  .fall-card .shape { width: min(52px, 50%); }
+  .fall-card b { font: 650 clamp(14px, 2.3vw, 25px)/1 var(--mono); }
+  .arena-meter { margin-top: 9px; height: 3px; border-radius: 2px; background: #383f32; }
+  .arena-meter span { transform-origin: left; display: block; width: 100%; height: 100%; background: #b8cb6a; }
+  .goal-buttons { display: flex; gap: 6px; margin: 10px 0 0; }
+  .goal-button { flex: 1 1 auto; min-width: 0; min-height: 54px; display: flex; align-items: center; justify-content: center; gap: 8px; font: 650 17px/1 var(--mono); color: #d2d9c6; padding: 5px; }
+  .goal-button[aria-pressed="true"] { border-color: #afc56c; background: #374329; color: var(--accent); }
+  .goal-button:hover { border-color: var(--accent); }
+  .goal-button .shape { width: min(37px, 46%); }
+  .fall-card .shape i:not(.filled), .goal-button .shape i:not(.filled) { background: #46513e; }
+  .dual .side { grid-column: 1 / -1; grid-row: 1; }
+  .dual .side:has(.reference:not([hidden])) { padding: 14px 18px; display: grid; grid-template-columns: minmax(230px, 1.22fr) minmax(0, 1fr); gap: 0 20px; align-items: center; }
+  .dual .reference { grid-row: 1 / 5; min-height: 118px; height: 100%; }
+  .dual .reference .shape { max-width: 100px; }
+  .dual .target-number { font-size: 58px; }
+  .dual .side-head { margin-bottom: 0; }
+  .dual .side-notes, .dual .status-row, .dual .game-actions { margin-top: 8px; }
+  .dual .arena { height: 160px; margin-top: 12px; }
+  .dual .board { width: min(100%, 410px, max(275px, calc(100svh - 460px))); }
+  .dual .tile { font-size: clamp(21px, 3.8vw, 40px); }
+  .footer { display: flex; justify-content: space-between; align-items: baseline; gap: 20px; margin-top: 17px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  details summary { cursor: pointer; color: #d5dacf; white-space: nowrap; }
+  details p { margin: 7px 0 0; }
+  .footer p { margin: 0; }
+  .footer details p { margin-top: 7px; }
+  #compact-rule { display: none; }
+  @media (min-width: 781px) {
+    .game-grid.dual[data-mode="fall"] { grid-template-columns: minmax(0, 1fr) minmax(210px, .64fr) minmax(0, 1fr); }
+    .dual[data-mode="fall"] .side { grid-column: 2; grid-row: 1; padding: 16px 13px; }
+    .dual[data-mode="fall"] [data-player]:last-child { grid-column: 3; grid-row: 1; }
+    .dual[data-mode="fall"] .arena { height: 234px; }
+    .dual[data-mode="fall"] .fall-card { flex-direction: column; }
+    .dual[data-mode="fall"] .fall-card .shape { width: min(39px, 90%); }
+    .dual[data-mode="fall"] .fall-card b { font-size: 18px; }
+  }
+  @media (max-width: 780px) {
+    .shell { width: calc(100% - 32px); padding-top: 23px; }
+    .masthead { align-items: start; }
+    .settings { flex-wrap: wrap; justify-content: end; gap: 6px; }
+    .segment button { min-width: 44px; }
+    .game-grid:not(.dual) { grid-template-columns: minmax(0, 1fr); }
+    .game-grid:not(.dual) .side { grid-row: 1; }
+    .side { padding: 13px 14px; }
+    .side-head { margin-bottom: 10px; }
+    .reference { min-height: 0; padding: 11px 15px; }
+    .reference .shape { max-width: 78px; }
+    .target-number { font-size: 48px; }
+    .side-notes, .game-actions, .status-row { margin-top: 8px; }
+    .status-row { min-height: 0; }
+    .play { padding: 13px 14px 9px; }
+    .play-head { margin-bottom: 10px; }
+    .arena { height: 174px; }
+    .board, .dual .board { width: min(100%, 450px); }
+  }
+  @media (max-width: 520px) {
+    .shell { width: calc(100% - 24px); padding-top: 17px; }
+    .masthead { flex-direction: column; gap: 12px; padding-bottom: 12px; }
+    .series { font-size: 10px; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; margin-top: 6px; }
+    .settings { gap: 9px; }
+    .segment { padding: 3px; }
+    .segment button { min-height: 33px; }
+    .modes { margin-bottom: 12px; }
+    .modes button { min-height: 43px; font-size: 13px; }
+    .game-grid { gap: 11px; }
+    .game-grid.dual { grid-template-columns: minmax(0, 1fr); }
+    .dual .side:has(.reference:not([hidden])) { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 13px 14px; }
+    .dual .side-head { margin-bottom: 10px; }
+    .dual .reference { min-height: 0; grid-row: auto; }
+    .dual .reference .shape { max-width: 78px; }
+    .dual .target-number { font-size: 48px; }
+    .side, .dual .side:has(.reference:not([hidden])) {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px;
+    }
+    .side-head, .reference, #falling { grid-column: 1 / -1; }
+    .side-notes { display: none; }
+    #compact-rule { display: block; }
+    .arena, .dual .arena { height: 110px; }
+    .dual .arena { margin-top: 0; }
+    .fall-card { min-height: 46px; }
+    .fall-card .shape { width: min(34px, 48%); }
+    .status-row { align-items: center; }
+    .game-actions { justify-content: end; gap: 6px; }
+    .action { min-height: 35px; padding-inline: 8px; }
+    #status { font-size: 12px; }
+    .play { display: flex; flex-direction: column; }
+    .goal-buttons { order: -1; margin: 0 0 9px; }
+    .goal-button { min-height: 42px; }
+    .goal-button .shape { width: min(29px, 46%); }
+    .tile { border-radius: 6px; font-size: clamp(22px, 8.6vw, 38px); }
+    .board[data-size="5"] .tile { font-size: clamp(20px, 7vw, 30px); }
+    .dual .tile { font-size: clamp(22px, 8.6vw, 38px); }
+    .footer { flex-wrap: wrap; gap: 5px 10px; margin-top: 12px; }
+  }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <div>
+      <p class="series">最强大脑 S14</p>
+      <h1>方块消除</h1>
+      <p class="subtitle">滑动数字方块，让框内数字加起来等于目标值。</p>
+    </div>
+    <div class="settings">
+      <div class="segment" role="group" aria-label="棋盘大小">
+        <button type="button" data-size="4" aria-pressed="true">4×4</button>
+        <button type="button" data-size="5" aria-pressed="false">5×5</button>
+      </div>
+      <div class="segment" role="group" aria-label="人数">
+        <button type="button" data-count="1" aria-pressed="true">单人</button>
+        <button type="button" data-count="2" aria-pressed="false">双人</button>
+      </div>
+    </div>
+  </header>
+  <nav class="modes" aria-label="比赛模式">
+    <button type="button" data-mode="sprint" aria-pressed="true">单题竞速</button>
+    <button type="button" data-mode="fall" aria-pressed="false">弹幕抢消</button>
+    <button type="button" data-mode="score" aria-pressed="false">独立计分</button>
+  </nav>
+  <div class="game-grid" id="game">
+    <div id="players" style="display: contents"></div>
+    <aside class="panel side" aria-labelledby="side-title">
+      <div class="side-head">
+        <h2 id="side-title">目标框</h2>
+        <div class="clock"><p id="clock-label">用时</p><time id="clock">00:00</time></div>
+      </div>
+      <div class="reference" id="reference"></div>
+      <div id="falling" hidden>
+        <div class="arena" id="arena" aria-label="下落目标"></div>
+        <div class="arena-meter" aria-hidden="true"><span id="wave-meter"></span></div>
+      </div>
+      <p class="side-notes" id="mode-rule"></p>
+      <div class="status-row"><p id="status" role="status"></p></div>
+      <div class="game-actions">
+        <button type="button" class="action primary" id="start" hidden>开始挑战</button>
+        <button type="button" class="action" id="reset">重开本局</button>
+        <button type="button" class="action" id="new-game">换题</button>
+      </div>
+    </aside>
+  </div>
+  <footer class="footer">
+    <p id="input-help"></p>
+    <details>
+      <summary>操作说明</summary>
+      <p>点击或轻触与空格同行或同列的数字，它和空格之间的方块会一起向空格移一格，整段计一步。方向键每次移动一个相邻方块。目标框必须填满，且框内数字之和恰好等于目标值。</p>
+      <p id="compact-rule"></p>
+    </details>
+  </footer>
+</main>
+<template id="player-template">
+  <section class="panel play" data-player>
+    <div class="play-head">
+      <div><h2></h2><p class="controls-caption" hidden></p></div>
+      <div class="statline">
+        <span data-score-wrap hidden>得分<b data-score>0</b></span>
+        <span>步数<b data-moves>0</b></span>
+      </div>
+    </div>
+    <div class="board"></div>
+    <div class="play-foot">
+      <span class="legend"><i class="swatch" aria-hidden="true"></i>目标框</span>
+      <span class="sum">框内合计 <strong data-sum>0</strong><span data-incomplete></span></span>
+    </div>
+    <div class="goal-buttons" aria-label="选择目标框" hidden></div>
+  </section>
+</template>
+<script src="game.js"></script>
+</body>
+</html>
