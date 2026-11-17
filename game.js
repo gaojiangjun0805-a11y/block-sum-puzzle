@@ -4,146 +4,26 @@ const elements = Object.fromEntries(
   [...document.querySelectorAll('[id]')].map(element => [element.id, element])
 );
 
-const rules = {
-  sprint: {
-    title: '目标框',
-    description: '把目标框填满，框内数字恰好达到目标值即完成。双人赛以先达成为胜。'
-  },
-  fall: {
-    title: '共享目标',
-    seconds: 75,
-    description: '选中并解出一个下落目标得 1 分，双方共享目标。每波结束后更换棋盘，目标逐渐增多、加快。'
-  },
-  score: {
-    title: '独立计分',
-    seconds: 90,
-    description: '每位选手各有两个目标，点选其一进行挑战。完成后换入新目标，框内每个方块计 1 分。'
-  }
-};
-
-const reference = {
-  board: [2, 5, 15, 1, 11, 12, 6, 13, 8, 10, 9, 14, 0, 7, 4, 3],
-  indices: [2, 4, 5, 6, 7, 10, 14],
-  value: 80
-};
-
-const sourceShapes = [
-  [[0, 0], [1, 0], [1, 1], [1, 2]],
-  [[0, 1], [1, 0], [1, 1], [1, 2]],
-  [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]],
-  [[0, 0], [0, 1], [1, 1], [2, 1], [2, 2]],
-  [[0, 2], [1, 0], [1, 1], [1, 2], [1, 3], [2, 2], [3, 2]]
-];
-
+const { rules, reference, randomFrom, slideStride, buildFrames, sumInFrame, solved } = puzzle;
 const config = { size: 4, playerCount: 1, mode: 'sprint', seed: 0 };
+const viewQuery = new URLSearchParams(location.search);
+const view = viewQuery.get('view');
+const roomPlayer = view === 'seat';
 let state;
-
-function randomFrom(seed) {
-  return () => {
-    seed = (seed + 0x6D2B79F5) >>> 0;
-    let n = Math.imul(seed ^ (seed >>> 15), seed | 1);
-    n ^= n + Math.imul(n ^ (n >>> 7), n | 61);
-    return ((n ^ (n >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const choose = (items, random) => items[Math.floor(random() * items.length)];
-
-function neighbors(index, size) {
-  const cells = [];
-  if (index >= size) cells.push(index - size);
-  if (index < size * (size - 1)) cells.push(index + size);
-  if (index % size > 0) cells.push(index - 1);
-  if (index % size < size - 1) cells.push(index + 1);
-  return cells;
-}
-
-function slideStride(gap, position, size) {
-  const direction = Math.sign(position - gap);
-  if (Math.floor(position / size) === Math.floor(gap / size)) return direction;
-  if (position % size === gap % size) return direction * size;
-  return 0;
-}
-
-function walk(board, steps, random) {
-  const cells = board.slice();
-  let gap = cells.indexOf(0);
-  let previousGap = -1;
-  for (let step = 0; step < steps; step += 1) {
-    const nextGap = choose(neighbors(gap, config.size).filter(index => index !== previousGap), random);
-    cells[gap] = cells[nextGap];
-    cells[nextGap] = 0;
-    previousGap = gap;
-    gap = nextGap;
-  }
-  return cells;
-}
+let roomPacket;
+let roomCredentials;
+let roomEvents;
+let roomOffset = 0;
+let actionPending = false;
+let practiceRound = 0;
 
 function newBoard(random, steps) {
-  const cells = Array.from({ length: config.size ** 2 }, (_, index) => (index + 1) % (config.size ** 2));
-  return walk(cells, steps, random);
-}
-
-function buildFrames(size) {
-  const catalog = new Map([[4, new Map()], [5, new Map()], [7, new Map()]]);
-  for (const source of sourceShapes) {
-    let points = source;
-    for (let turn = 0; turn < 4; turn += 1) {
-      const top = Math.min(...points.map(([row]) => row));
-      const left = Math.min(...points.map(([, column]) => column));
-      const height = Math.max(...points.map(([row]) => row)) - top + 1;
-      const width = Math.max(...points.map(([, column]) => column)) - left + 1;
-      for (let row = 0; row <= size - height; row += 1) {
-        for (let column = 0; column <= size - width; column += 1) {
-          const indices = points.map(([y, x]) => (y - top + row) * size + x - left + column).sort((a, b) => a - b);
-          catalog.get(source.length).set(indices.join(','), indices);
-        }
-      }
-      points = points.map(([row, column]) => [column, -row]);
-    }
-  }
-  return new Map([...catalog].map(([length, frames]) => [length, [...frames.values()]]));
-}
-
-function sumInFrame(board, indices) {
-  return indices.reduce((sum, index) => sum + board[index], 0);
-}
-
-function solved(board, goal) {
-  return goal.indices.every(index => board[index] !== 0) && sumInFrame(board, goal.indices) === goal.value;
+  return puzzle.newBoard(random, steps, config.size);
 }
 
 function makeGoal(board, length, steps, random, excluded) {
-  const frames = state.catalog.get(length);
-  const used = new Set(excluded.map(goal => goal.key));
-
-  function findGoal(cells) {
-    const candidates = [];
-    for (const indices of frames) {
-      if (indices.some(index => cells[index] === 0)) continue;
-      const value = sumInFrame(cells, indices);
-      const key = indices.join(',') + '/' + value;
-      if (used.has(key) || solved(board, { indices, value })) continue;
-      candidates.push({ indices, value, key });
-    }
-    return candidates.length ? choose(candidates, random) : null;
-  }
-
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const goal = findGoal(walk(board, steps + attempt % 3, random));
-    if (goal) return { ...goal, id: state.nextId++ };
-  }
-
-  // A frame containing the current gap can be completed by moving its gap outside.
-  const gap = board.indexOf(0);
-  for (const tile of neighbors(gap, config.size)) {
-    const cells = board.slice();
-    cells[gap] = cells[tile];
-    cells[tile] = 0;
-    const goal = findGoal(cells);
-    if (goal) return { ...goal, id: state.nextId++ };
-  }
-  throw new Error('无法生成可达成的目标框');
+  const goal = puzzle.generateGoal(board, length, steps, random, excluded, config.size, state.catalog);
+  return { ...goal, id: state.nextId++ };
 }
 
 function createPlayer(board, index) {
@@ -173,7 +53,9 @@ function createPlayer(board, index) {
     board: board.slice(), index, title, panel, grid, tiles,
     moves: 0, score: 0, goals: [], selected: null,
     sumLabel: panel.querySelector('[data-sum]'),
-    incompleteLabel: panel.querySelector('[data-incomplete]'),
+    difference: panel.querySelector('[data-difference]'),
+    goalValue: panel.querySelector('[data-goal-value]'),
+    goalShape: panel.querySelector('[data-goal-shape]'),
     movesLabel: panel.querySelector('[data-moves]'),
     scoreLabel: panel.querySelector('[data-score]'),
     goalButtons: panel.querySelector('.goal-buttons')
@@ -181,6 +63,7 @@ function createPlayer(board, index) {
 }
 
 function currentGoals(player) {
+  if (roomPlayer) return player.goals;
   if (config.mode === 'sprint') return [state.goal];
   if (config.mode === 'fall') return state.wave.goals;
   return player.goals;
@@ -192,22 +75,7 @@ function currentGoal(player) {
 }
 
 function shapeFor(goal) {
-  const shape = document.createElement('div');
-  shape.className = 'shape';
-  shape.style.setProperty('--size', config.size);
-  shape.setAttribute('role', 'img');
-  const positions = goal.indices.map(index => {
-    const row = Math.floor(index / config.size) + 1;
-    const column = index % config.size + 1;
-    return row + ' 行 ' + column + ' 列';
-  });
-  shape.setAttribute('aria-label', '框内位置为 ' + positions.join('、'));
-  for (let index = 0; index < config.size ** 2; index += 1) {
-    const cell = document.createElement('i');
-    cell.classList.toggle('filled', goal.indices.includes(index));
-    shape.append(cell);
-  }
-  return shape;
+  return displays.shape(goal, config.size);
 }
 
 function valueFor(goal, className) {
@@ -223,6 +91,7 @@ function renderGoalButtons(player) {
   const container = player.goalButtons;
   container.hidden = config.mode === 'sprint' || (config.mode === 'fall' && goals.length <= 1);
   if (container.hidden) return;
+  container.style.setProperty('--goals', goals.length);
 
   const selected = currentGoal(player).id;
   const key = goals.map(goal => goal.id).join(',');
@@ -236,6 +105,10 @@ function renderGoalButtons(player) {
       button.setAttribute('aria-label', '选中目标 ' + (index + 1) + '，目标和 ' + goal.value);
       button.append(shapeFor(goal), valueFor(goal, 'goal-value'));
       button.addEventListener('click', () => {
+        if (roomPlayer) {
+          void sendRoomAction('select', { goal: goal.id });
+          return;
+        }
         player.selected = goal.id;
         renderPlayer(player);
         if (state.phase === 'playing') {
@@ -255,7 +128,7 @@ function renderGoalButtons(player) {
 function renderPlayer(player, stride = 0) {
   const goal = currentGoal(player);
   const gap = player.board.indexOf(0);
-  const canSlide = state.phase === 'playing' || (config.mode === 'sprint' && state.phase === 'ready');
+  const canSlide = state.phase === 'playing' || (!roomPlayer && config.mode === 'sprint' && state.phase === 'ready');
   player.tiles.forEach((tile, index) => {
     const value = player.board[index];
     const marked = goal?.indices.includes(index) ?? false;
@@ -285,78 +158,78 @@ function renderPlayer(player, stride = 0) {
     tile.append(face);
   });
 
-  player.sumLabel.textContent = goal ? sumInFrame(player.board, goal.indices) : '·';
-  player.incompleteLabel.textContent = goal?.indices.includes(gap) ? '（未填满）' : '';
+  const sum = goal ? sumInFrame(player.board, goal.indices) : null;
+  player.sumLabel.textContent = sum ?? '·';
+  player.goalValue.textContent = goal?.value ?? '·';
+  const shapeKey = goal ? config.size + ':' + goal.indices.join(',') : '';
+  if (player.goalShape.dataset.frame !== shapeKey) {
+    player.goalShape.dataset.frame = shapeKey;
+    player.goalShape.replaceChildren(...(goal ? [shapeFor(goal)] : []));
+  }
+  if (!goal || goal.indices.includes(gap)) {
+    player.difference.textContent = goal ? '框内未满' : '等待目标';
+  } else if (sum === goal.value) {
+    player.difference.textContent = '已达成';
+  } else {
+    const difference = document.createElement('b');
+    difference.textContent = Math.abs(goal.value - sum);
+    player.difference.replaceChildren(goal.value > sum ? '差 ' : '超 ', difference);
+  }
   player.movesLabel.textContent = player.moves;
   player.scoreLabel.textContent = player.score;
   renderGoalButtons(player);
 }
 
 function renderArena() {
-  const wave = state.wave;
-  elements.arena.dataset.wave = wave.number;
-  const lanes = document.createElement('div');
-  lanes.className = 'lanes';
-  lanes.style.setProperty('--lanes', wave.slots);
-  for (let lane = 0; lane < wave.slots; lane += 1) {
-    const column = document.createElement('div');
-    column.className = 'lane';
-    const goal = wave.goals.find(item => item.lane === lane);
-    if (goal) {
-      const card = document.createElement('div');
-      card.className = 'fall-card';
-      card.append(shapeFor(goal), valueFor(goal, 'fall-value'));
-      column.append(card);
-    }
-    lanes.append(column);
-  }
-  elements.arena.replaceChildren(lanes);
+  displays.drawArena(elements.arena, state.wave, config.size);
 }
 
 function animateWave(now) {
-  const progress = Math.max(0, Math.min(1, (now - state.wave.startedAt) / state.wave.duration));
-  elements['wave-meter'].style.transform = 'scaleX(' + (1 - progress) + ')';
-  for (const card of elements.arena.querySelectorAll('.fall-card')) {
-    const distance = Math.max(0, elements.arena.clientHeight - card.offsetHeight - 12);
-    card.style.transform = 'translateY(' + distance * progress + 'px)';
-  }
+  displays.animateArena(elements.arena, state.wave, now, elements['wave-meter']);
 }
 
 function renderHeader() {
   const mode = rules[config.mode];
   const timed = Boolean(mode.seconds);
-  const sprint = config.mode === 'sprint';
-  const fall = config.mode === 'fall';
-  elements['side-title'].textContent = mode.title;
+  elements['mode-tag'].textContent = mode.title;
   elements['mode-rule'].textContent = mode.description;
-  elements['compact-rule'].textContent = mode.description;
   elements['clock-label'].textContent = timed ? '剩余' : '用时';
-  elements.reference.hidden = !sprint;
-  elements.falling.hidden = !fall;
-  elements.start.hidden = !timed || state.phase !== 'ready';
+  elements['seat-tag'].textContent = roomPlayer ? '选手 ' + displays.seatLabel(roomCredentials.seat)
+    : config.playerCount === 1 ? '单人练习' : '同屏双人';
+  elements.falling.hidden = config.mode !== 'fall' || roomPlayer;
+  elements.start.hidden = roomPlayer || !timed || state.phase !== 'ready';
   elements.game.classList.toggle('dual', config.playerCount === 2);
   elements.game.dataset.mode = config.mode;
+  const utilityParent = config.playerCount === 1
+    ? state.players[0].panel.querySelector('.target-side')
+    : elements.falling.parentElement;
+  if (elements.utility.parentElement !== utilityParent) utilityParent.append(elements.utility);
   elements['input-help'].textContent = config.playerCount === 1
-    ? '点击与空格同行同列的数字，可整段滑动。方向键每次推一格。'
-    : '同屏双人 · A 用 WASD，B 用方向键，点击与空格同行同列的数字可整段滑动。';
+    ? '方向键每次推一格。'
+    : '选手 A 用 WASD，选手 B 用方向键。';
   for (const [field, value] of Object.entries({ mode: config.mode, size: config.size, count: config.playerCount })) {
-    for (const button of document.querySelectorAll('[data-' + field + ']')) {
-      if (button instanceof HTMLButtonElement) button.setAttribute('aria-pressed', button.dataset[field] === String(value));
+    for (const button of document.querySelectorAll('button[data-' + field + ']')) {
+      button.setAttribute('aria-pressed', button.dataset[field] === String(value));
     }
   }
-  if (sprint) {
-    const caption = document.createElement('span');
-    caption.className = 'target-label';
-    caption.textContent = '目标和';
-    const label = document.createElement('div');
-    label.append(caption, valueFor(state.goal, 'target-number'));
-    elements.reference.replaceChildren(label, shapeFor(state.goal));
-  }
+}
+
+function practicePacket() {
+  const epoch = Date.now() - performance.now();
+  const wave = state.wave ? { ...state.wave, startedAt: state.phase === 'ready' ? null : epoch + state.wave.startedAt } : null;
+  return {
+    round: practiceRound, phase: state.phase, mode: config.mode, size: config.size, now: Date.now(),
+    start: state.startedAt === null ? null : epoch + state.startedAt,
+    end: state.endedAt === undefined ? null : epoch + state.endedAt,
+    goal: state.goal, wave, lastEvent: state.lastEvent, status: elements.status.textContent, capacity: config.playerCount,
+    rows: state.players.map(player => ({ number: player.index + 1, score: player.score })),
+  };
 }
 
 function setStatus(message, final = false) {
   elements.status.textContent = message;
   elements.status.dataset.result = final;
+  if (!roomPlayer) displays.publish(practicePacket());
 }
 
 function updateClock(now) {
@@ -369,21 +242,12 @@ function updateClock(now) {
 }
 
 function makeWave(board, now, elapsed) {
-  const level = Math.min(2, Math.floor(elapsed / 25));
-  const slots = level + 1;
-  const goals = [];
-  for (let lane = 0; lane < slots; lane += 1) {
-    const length = [4, 5, 7][Math.min(level, lane)];
-    const goal = makeGoal(board, length, 3 + level + lane, state.random, goals);
-    goals.push({ ...goal, lane });
-  }
-  return {
-    number: (state.wave?.number ?? 0) + 1,
-    goals, slots, startedAt: now, duration: [12000, 9500, 7200][level]
-  };
+  return puzzle.generateWave(board, now, elapsed, (state.wave?.number ?? 0) + 1,
+    (cells, length, steps, goals) => makeGoal(cells, length, steps, state.random, goals));
 }
 
 function setup() {
+  practiceRound += 1;
   const random = randomFrom(config.seed ^ (config.size << 12));
   const sample = config.mode === 'sprint' && config.size === 4 && config.seed === 0;
   const board = sample ? reference.board : newBoard(random, 40 + config.size * 5);
@@ -429,6 +293,7 @@ function begin(now) {
 
 function finish(now, message) {
   state.phase = 'finished';
+  state.endedAt = now;
   updateClock(now);
   setStatus(message, true);
   for (const player of state.players) renderPlayer(player);
@@ -485,7 +350,10 @@ function celebrate(player, goal) {
 function checkGoal(player, now) {
   const goal = currentGoal(player);
   if (!goal || !solved(player.board, goal)) return;
+  const points = config.mode === 'score' ? goal.indices.length : 1;
+  state.lastEvent = { number: player.index + 1, points, target: goal.value };
   if (config.mode === 'sprint') {
+    player.score = points;
     const message = config.playerCount === 2 ? player.title + ' 获胜' : '已达成目标 ' + goal.value;
     finish(now, message + ' · ' + player.moves + ' 步');
     celebrate(player, goal);
@@ -518,6 +386,10 @@ function checkGoal(player, now) {
 }
 
 function slide(playerIndex, position) {
+  if (roomPlayer) {
+    if (state?.phase === 'playing') void sendRoomAction('move', { position });
+    return;
+  }
   const now = performance.now();
   const waveNumber = state.wave?.number;
   updateTime(now);
@@ -540,7 +412,7 @@ function slide(playerIndex, position) {
 }
 
 function onKeyDown(event) {
-  if (event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+  if (!state || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
   const arrows = { ArrowLeft: [0, 1], ArrowRight: [0, -1], ArrowUp: [1, 0], ArrowDown: [-1, 0] };
   const letters = { a: [0, 1], d: [0, -1], w: [1, 0], s: [-1, 0] };
   const direction = arrows[event.key] ?? letters[event.key.toLowerCase()];
@@ -555,30 +427,125 @@ function onKeyDown(event) {
   }
 }
 
-for (const button of document.querySelectorAll('button[data-mode], button[data-size], button[data-count]')) {
-  button.addEventListener('click', () => {
-    if (button.getAttribute('aria-pressed') === 'true') return;
-    config.mode = button.dataset.mode ?? config.mode;
-    config.size = Number(button.dataset.size ?? config.size);
-    config.playerCount = Number(button.dataset.count ?? config.playerCount);
+function showRoomSeat(next) {
+  if (!next.seat) return;
+  const participant = next.seat;
+  const rebuild = next.round !== roomPacket?.round || !state;
+  roomPacket = next;
+  roomOffset = next.now - Date.now();
+  config.mode = next.mode;
+  config.size = next.size;
+  const player = rebuild ? createPlayer(participant.board, 0) : state.players[0];
+  Object.assign(player, {
+    board: participant.board, moves: participant.moves, score: participant.score,
+    selected: participant.selected, goals: participant.goals,
+  });
+  state = { ...next, players: [player] };
+  if (rebuild) elements.players.replaceChildren(player.panel);
+  renderHeader();
+  setStatus(next.status, next.phase === 'finished');
+  renderPlayer(player);
+  elements['seat-form'].hidden = true;
+  elements.game.hidden = false;
+}
+
+async function sendRoomAction(action, options = {}) {
+  if (!roomPacket || !roomCredentials || actionPending || state.phase !== 'playing') return;
+  actionPending = true;
+  try {
+    const next = await displays.post('action', {
+      action, round: roomPacket.round, wave: roomPacket.wave?.number ?? null, ...options,
+    }, roomCredentials);
+    showRoomSeat(next);
+  } catch (error) {
+    setStatus(error.message);
+  } finally {
+    actionPending = false;
+  }
+}
+
+async function joinRoom(number, token) {
+  try {
+    elements['join-status'].textContent = '连接中';
+    const result = await displays.post('join', { seat: number, token });
+    roomCredentials = { seat: number, token: result.token };
+    try { sessionStorage.setItem('速算华容道-选手', JSON.stringify(roomCredentials)); } catch { /* Session can still play. */ }
+    showRoomSeat(result.state);
+    elements['open-screen'].href = '?view=screen&room=1';
+    elements['open-rank'].href = '?view=rank&room=1&me=' + number;
+    roomEvents?.close();
+    roomEvents = displays.connectRoom(showRoomSeat, () => setStatus('比赛连接中断，正在重连'), roomCredentials);
+  } catch (error) {
+    elements['join-status'].textContent = '无法进入比赛 · ' + error.message;
+  }
+}
+
+function installRoomSeat() {
+  document.body.dataset.view = 'seat';
+  document.querySelector('.toolbar').hidden = true;
+  elements.game.hidden = true;
+  elements.start.hidden = true;
+  elements['new-game'].hidden = true;
+  elements['seat-form'].hidden = false;
+  elements['mode-tag'].textContent = '现场比赛';
+  elements['seat-tag'].textContent = '选手端';
+  const requested = Number(viewQuery.get('seat'));
+  if (Number.isInteger(requested) && requested >= 1 && requested <= 50) elements['seat-number'].value = requested;
+  let saved;
+  try { saved = JSON.parse(sessionStorage.getItem('速算华容道-选手')); } catch { /* A seat can be entered manually. */ }
+  if (saved && (!requested || saved.seat === requested)) {
+    elements['seat-number'].value = saved.seat;
+    void joinRoom(saved.seat, saved.token);
+  }
+  elements['seat-form'].addEventListener('submit', event => {
+    event.preventDefault();
+    const number = Number(elements['seat-number'].value);
+    void joinRoom(number, saved?.seat === number ? saved.token : undefined);
+  });
+  elements.reset.addEventListener('click', () => { void sendRoomAction('reset'); });
+}
+
+function installPractice() {
+  for (const button of document.querySelectorAll('button[data-mode], button[data-size], button[data-count]')) {
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-pressed') === 'true') return;
+      config.mode = button.dataset.mode ?? config.mode;
+      config.size = Number(button.dataset.size ?? config.size);
+      config.playerCount = Number(button.dataset.count ?? config.playerCount);
+      setup();
+    });
+  }
+  elements.start.addEventListener('click', () => begin(performance.now()));
+  elements.reset.addEventListener('click', setup);
+  elements['new-game'].addEventListener('click', () => {
+    config.seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
     setup();
   });
-}
-elements.start.addEventListener('click', () => begin(performance.now()));
-elements.reset.addEventListener('click', setup);
-elements['new-game'].addEventListener('click', () => {
-  config.seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+  elements['open-rank'].href = '?view=rank&me=1';
+  elements['room-links'].hidden = !document.body.hasAttribute('data-room-server');
   setup();
-});
-document.addEventListener('keydown', onKeyDown);
-elements.players.addEventListener('animationend', event => {
-  if (event.animationName === 'clear') event.target.classList.remove('cleared');
-});
-setup();
+  displays.listenRequests(practicePacket);
+}
 
 function animate(now) {
-  updateTime(now);
-  if (state.wave && state.phase === 'playing') animateWave(now);
+  if (roomPlayer && roomPacket) {
+    const clock = displays.projectedClock(roomPacket, Date.now() + roomOffset);
+    if (elements.clock.textContent !== clock) elements.clock.textContent = clock;
+  } else if (state && !roomPlayer) {
+    updateTime(now);
+    if (state.wave && state.phase === 'playing') animateWave(now);
+  }
   requestAnimationFrame(animate);
 }
-requestAnimationFrame(animate);
+
+if (['screen', 'rank', 'host'].includes(view)) {
+  displays.show(view, elements);
+} else {
+  if (roomPlayer) installRoomSeat();
+  else installPractice();
+  document.addEventListener('keydown', onKeyDown);
+  elements.players.addEventListener('animationend', event => {
+    if (event.animationName === 'clear') event.target.classList.remove('cleared');
+  });
+  requestAnimationFrame(animate);
+}
