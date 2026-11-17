@@ -46,6 +46,8 @@ const displays = (() => {
       if (goal) {
         const card = document.createElement('div');
         card.className = 'fall-card';
+        card.classList.toggle('featured', goal.indices.length >= 7);
+        card.dataset.lane = lane;
         const value = textNode('b', goal.value);
         value.dataset.goalValue = '';
         card.append(value, shape(goal, size));
@@ -62,7 +64,8 @@ const displays = (() => {
     if (meter) meter.style.transform = 'scaleX(' + (1 - progress) + ')';
     for (const card of container.querySelectorAll('.fall-card')) {
       const distance = Math.max(0, container.clientHeight - card.offsetHeight - 8);
-      card.style.transform = 'translateY(' + distance * progress + 'px)';
+      const fall = wave.slots === 1 ? progress : progress ** (1.18 - Number(card.dataset.lane) * .18);
+      card.style.transform = 'translateY(' + distance * fall + 'px)';
     }
   }
 

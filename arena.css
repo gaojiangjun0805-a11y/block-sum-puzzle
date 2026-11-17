@@ -113,7 +113,7 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .controls-caption, .statline { font-size: clamp(11px, 1vw, 18px); color: var(--muted); }
 .statline { display: flex; gap: 10px; white-space: nowrap; }
 .statline b { color: var(--yellow); font-size: 1.22em; }
-.board-side { justify-self: center; width: min(100%, max(285px, calc(100svh - 390px)), 660px); min-width: 0; }
+.board-side { justify-self: center; width: min(100%, max(285px, calc(100svh - 390px)), 660px); min-width: 0; container-type: inline-size; }
 .board {
   display: grid;
   grid-template-columns: repeat(var(--size), minmax(0, 1fr));
@@ -131,7 +131,7 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
   background: linear-gradient(157deg, #fff, #d9dbdf);
   color: #111214;
   box-shadow: inset 0 -3px 0 #0002;
-  font: italic 950 clamp(23px, 5.6vw, 105px)/1 var(--digits);
+  font: italic 950 clamp(20px, 12.6cqi, 83px)/1 var(--digits);
   letter-spacing: -.075em;
   overflow: hidden;
   touch-action: manipulation;
@@ -141,7 +141,7 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
   min-height: 0;
   cursor: default;
 }
-.board[data-size="5"] .tile { font-size: clamp(20px, 4.5vw, 86px); }
+.board[data-size="5"] .tile { font-size: clamp(16px, 10.15cqi, 67px); }
 .tile.marked { border-color: #e9ff9a; background: linear-gradient(155deg, #e2ff75, var(--lime) 60%, #a7d71e); }
 .tile.empty { background: #18191b; border: 1px solid #525358; }
 .tile.empty.marked { border: 2px dashed var(--lime); }
@@ -185,8 +185,6 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .goal-button[aria-pressed="true"], .goal-button:hover { border: 2px solid var(--yellow); color: var(--yellow); }
 .dual .play { display: flex; flex-direction: column; align-items: stretch; gap: 9px; }
 .dual .board-side { width: min(100%, max(220px, calc(100svh - 520px)), 525px); align-self: center; }
-.dual .tile { font-size: clamp(21px, 4vw, 69px); }
-.dual .board[data-size="5"] .tile { font-size: clamp(18px, 3vw, 54px); }
 .dual .target-head { padding: .6em 1.05em; }
 .dual .target-value b { font-size: clamp(34px, 5vw, 77px); }
 .dual [data-goal-shape] { width: 12%; }
@@ -250,6 +248,7 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
   border: 0;
 }
 .screen-arena .fall-card b { font-size: clamp(28px, 5vw, 97px); }
+.screen-arena .fall-card.featured { background: var(--yellow); }
 .screen-arena .fall-card .shape { width: min(75%, 112px); }
 .screen-arena .fall-card .shape i { background: #11111113; }
 .screen-arena .fall-card .shape i.filled { background: #333; }
@@ -322,8 +321,6 @@ body[data-view="rank"] h1 { justify-self: start; }
   .play { grid-template-columns: minmax(0, 1fr); }
   .board-side, .dual .board-side { width: min(100%, 360px); }
   .dual .players { grid-template-columns: minmax(0, 1fr); }
-  .tile, .dual .tile { font-size: clamp(28px, 9vw, 50px); }
-  .board[data-size="5"] .tile, .dual .board[data-size="5"] .tile { font-size: clamp(21px, 6vw, 38px); }
   .target-side { width: min(100%, 360px); justify-self: center; align-self: center; gap: 6px; }
   .target-head { padding: 5px 11px; }
   .target-head [data-goal-shape] { width: 12%; }
