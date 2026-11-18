@@ -98,7 +98,7 @@ form.addEventListener('submit', event => {
   phase = 'preview';
   duration.disabled = true;
   start.disabled = true;
-  status.textContent = '记住十字架中心的数字。';
+  status.textContent = '记住交叉格的位置和数字。';
   screenLabel.hidden = false;
   screenLabel.classList.add('countdown');
   targetCells.forEach((cell, index) => cell.classList.toggle('active', goal.indices.includes(index)));
