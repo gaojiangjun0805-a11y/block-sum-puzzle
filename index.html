@@ -4,147 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>速算华容道 · 最强大脑 S14</title>
+<title>速算华容道 · 闪记测试</title>
 <link rel="stylesheet" href="arena.css">
+<script src="puzzle.js" defer></script>
+<script src="game.js" defer></script>
 </head>
 <body>
-<main class="shell">
-  <header class="masthead">
-    <h1>速算华容道</h1>
-    <span class="mode-tag" id="mode-tag"></span>
-    <div class="clock"><span id="clock-label">用时</span><time id="clock">00:00</time></div>
-    <span class="seat-tag" id="seat-tag">单人练习</span>
-  </header>
-
-  <div id="play-view">
-    <div class="toolbar">
-      <nav class="modes" aria-label="比赛模式">
-        <button type="button" data-mode="sprint" aria-pressed="true">单题竞速</button>
-        <button type="button" data-mode="fall" aria-pressed="false">弹幕抢消</button>
-        <button type="button" data-mode="score" aria-pressed="false">独立计分</button>
-        <button type="button" data-mode="memory" aria-pressed="false">闪记推盘</button>
-      </nav>
-      <div class="settings">
-        <div class="segment" role="group" aria-label="棋盘大小">
-          <button type="button" data-size="4" aria-pressed="true">4×4</button>
-          <button type="button" data-size="5" aria-pressed="false">5×5</button>
-        </div>
-        <div class="segment" role="group" aria-label="人数">
-          <button type="button" data-count="1" aria-pressed="true">单人</button>
-          <button type="button" data-count="2" aria-pressed="false">双人</button>
-        </div>
+<main class="lab">
+  <h1>速算华容道</h1>
+  <section class="test-area" aria-label="题目闪示">
+    <div class="screen" id="screen" aria-label="题目显示窗口">
+      <p class="screen-label" id="screen-label">等待开始</p>
+      <div id="screen-cross" class="cross" hidden></div>
+    </div>
+    <form class="settings" id="settings">
+      <label for="duration">闪示时长</label>
+      <div class="duration">
+        <input id="duration" type="number" min="0.01" step="0.01" value="1" inputmode="decimal" required>
+        <span>秒</span>
       </div>
-    </div>
-
-    <div class="game-grid" id="game">
-      <div id="players" class="players"></div>
-      <aside class="play-sidebar">
-        <div id="falling" class="panel compact-arena" hidden>
-          <div class="arena" id="arena" aria-label="下落目标"></div>
-          <div class="arena-meter" aria-hidden="true"><span id="wave-meter"></span></div>
-        </div>
-        <div class="utility" id="utility">
-          <p id="status" role="status"></p>
-          <label id="practice-flash-config" class="flash-config" for="practice-flash-time" hidden>
-            闪示时长 <input id="practice-flash-time" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"> 秒
-          </label>
-          <div class="game-actions">
-            <button type="button" class="action primary" id="start" hidden>开始挑战</button>
-            <button type="button" class="action" id="reset" aria-label="重开本局">复位</button>
-            <button type="button" class="action" id="new-game">换题</button>
-            <a class="action" id="open-screen" href="?view=screen" target="_blank" rel="noopener">观众大屏</a>
-            <a class="action primary" href="?view=rank&me=1" target="_blank" rel="noopener">排行榜</a>
-          </div>
-        </div>
-      </aside>
-    </div>
-
-    <footer class="footer">
-      <p id="input-help"></p>
-      <details>
-        <summary>操作说明</summary>
-        <p>点空格同行同列的数字，整段滑动一步。目标框横竖各 4 格，共 7 格。框内必须填满，且数字之和恰好等于目标值。</p>
-        <p id="mode-rule"></p>
-      </details>
-    </footer>
-  </div>
-
-  <section id="screen-view" hidden aria-label="观众大屏">
-    <div class="screen-layout">
-      <section class="screen-standings">
-        <h2 class="ribbon" id="standing-title">当前领先</h2>
-        <ol id="screen-leaders" class="leader-list panel"></ol>
-      </section>
-      <div id="screen-arena" class="arena screen-arena" aria-label="公共下落目标"></div>
-      <div id="screen-feature" class="panel screen-feature" hidden></div>
-      <section class="screen-live">
-        <h2 class="ribbon">实时赛况</h2>
-        <p class="live-event panel" id="screen-event"></p>
-        <p class="live-status" id="screen-status" role="status"></p>
-      </section>
-    </div>
-    <nav class="view-actions">
-      <a class="action" id="screen-rank" href="?view=rank">排行榜</a>
-      <button class="action" type="button" data-fullscreen>全屏</button>
-    </nav>
+      <button class="start" id="start" type="submit">开始测试</button>
+      <p class="status" id="status" role="status">闪示结束后开始推盘。</p>
+    </form>
   </section>
-
-  <section id="rank-view" hidden aria-label="实时排行榜">
-    <div class="rank-panel">
-      <table class="rank-table">
-        <thead><tr><th scope="col">名次</th><th scope="col">选手</th><th scope="col" id="rank-metric">积分</th></tr></thead>
-        <tbody id="rank-rows"></tbody>
-      </table>
-      <p id="rank-empty" class="rank-empty" hidden>等待选手加入</p>
+  <section class="play" aria-label="数字华容道">
+    <div id="board" class="board" role="group" aria-label="4×4 推盘"></div>
+    <div class="board-footer">
+      <p>点击同行或同列的数字，整段滑动。</p>
+      <p>框内合计 <strong id="sum">70</strong></p>
     </div>
-    <div class="rank-footer">
-      <p id="my-standing" class="my-standing" hidden></p>
-      <span id="rank-range"></span>
-      <nav id="rank-pages" aria-label="排行榜分页"></nav>
-    </div>
-    <nav class="view-actions">
-      <a class="action" id="rank-back" href="?view=screen">返回大屏</a>
-      <button class="action" type="button" data-fullscreen>全屏</button>
-    </nav>
   </section>
-
 </main>
-
-<div id="flash-overlay" class="flash-overlay" hidden>
-  <div id="flash-figure" class="flash-figure" hidden></div>
-  <p id="flash-countdown" class="flash-countdown" hidden></p>
-</div>
-
-<template id="player-template">
-  <section class="panel play" data-player>
-    <div class="board-side">
-      <div class="play-head">
-        <div><h2></h2><p class="controls-caption" hidden></p></div>
-        <div class="statline">
-          <span data-score-wrap hidden>得分 <b data-score>0</b></span>
-          <span>步数 <b data-moves>0</b></span>
-        </div>
-      </div>
-      <div class="board"></div>
-      <p class="board-instruction">点同行同列数字，整段滑动</p>
-    </div>
-    <div class="target-side">
-      <div class="target-panel">
-        <div class="target-head">
-          <div class="target-value"><span>目标</span><b data-goal-value>·</b></div>
-          <div data-goal-shape></div>
-        </div>
-        <div class="target-totals">
-          <p>框内 <strong data-sum>0</strong></p>
-          <p data-difference></p>
-        </div>
-      </div>
-      <div class="goal-buttons" aria-label="选择目标框" hidden></div>
-    </div>
-  </section>
-</template>
-<script src="puzzle.js"></script>
-<script src="displays.js"></script>
-<script src="game.js"></script>
 </body>
 </html>

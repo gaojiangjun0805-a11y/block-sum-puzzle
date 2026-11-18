@@ -1,27 +1,6 @@
 'use strict';
 
 const puzzle = (() => {
-  const rules = {
-    sprint: {
-      title: '单题竞速',
-      description: '把目标框填满，框内数字恰好达到目标值即完成。双人赛以先达成为胜。'
-    },
-    fall: {
-      title: '弹幕抢消',
-      seconds: 75,
-      description: '选中并解出一个下落目标得 1 分，双方共享目标。每波结束后更换棋盘，目标逐渐增多、加快。'
-    },
-    score: {
-      title: '独立计分',
-      seconds: 90,
-      description: '每位选手各有两个目标，点选其一进行挑战。完成后换入新目标，框内每个方块计 1 分。'
-    },
-    memory: {
-      title: '闪记推盘',
-      description: '记住大屏一闪而过的目标和。熄屏后开始推盘，先达成的一方获胜。'
-    }
-  };
-
   const cross = [[0, 2], [1, 0], [1, 1], [1, 2], [1, 3], [2, 2], [3, 2]];
   const flashLead = 3000;
   const flashGrace = 40;
@@ -147,22 +126,8 @@ const puzzle = (() => {
     throw new Error('无法生成可达成的目标框');
   }
 
-  function generateWave(board, now, elapsed, number, goalFor) {
-    const level = Math.min(2, Math.floor(elapsed / 25));
-    const slots = level + 1;
-    const goals = [];
-    for (let lane = 0; lane < slots; lane += 1) {
-      const goal = goalFor(board, 3 + level + lane, goals);
-      goals.push({ ...goal, lane });
-    }
-    return {
-      number,
-      goals, slots, startedAt: now, duration: [12000, 9500, 7200][level]
-    };
-  }
-
-  return { rules, reference, randomFrom, slideStride, newBoard, buildFrames, sumInFrame, solved, generateGoal, generateWave,
-    flashMilliseconds, flashSchedule, isSingleGoal: mode => mode === 'sprint' || mode === 'memory' };
+  return { reference, randomFrom, slideStride, newBoard, sumInFrame, solved, generateGoal,
+    flashMilliseconds, flashSchedule };
 })();
 
 if (typeof module !== 'undefined') module.exports = puzzle;
