@@ -167,7 +167,13 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .target-totals p:first-child { color: #fff; background: #17181b; }
 .target-totals strong { color: var(--yellow); font-size: 1.52em; }
 [data-difference] b { font-size: 1.52em; }
-.shape { display: grid; grid-template-columns: repeat(var(--size), minmax(0, 1fr)); gap: 2px; width: 100%; aspect-ratio: 1; }
+.shape {
+  display: grid;
+  grid-template: repeat(var(--size), minmax(0, 1fr)) / repeat(var(--size), minmax(0, 1fr));
+  gap: 2px;
+  width: 100%;
+  aspect-ratio: 1;
+}
 .shape i { background: #ffffff21; }
 .shape i.filled { background: var(--lime); }
 .target-head .shape i { background: #291f001c; }
