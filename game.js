@@ -1,35 +1,30 @@
 'use strict';
 
 const size = 4;
-const frame = puzzle.reference.indices;
 const boardElement = document.querySelector('#board');
 const form = document.querySelector('#settings');
 const duration = document.querySelector('#duration');
 const start = document.querySelector('#start');
 const screenLabel = document.querySelector('#screen-label');
 const screenCross = document.querySelector('#screen-cross');
-const sumLabel = document.querySelector('#sum');
 const status = document.querySelector('#status');
 
-let board = puzzle.reference.board.slice();
-let goal = puzzle.reference;
+let board;
+let goal;
 let phase = 'ready';
 
-const targetCells = Array.from({ length: size ** 2 }, (_, index) => {
+const targetCells = Array.from({ length: size ** 2 }, () => {
   const cell = document.createElement('div');
   cell.className = 'cross-cell';
-  cell.classList.toggle('active', frame.includes(index));
   return cell;
 });
 const targetValue = document.createElement('b');
-targetCells[6].append(targetValue);
 screenCross.append(...targetCells);
 
 const tiles = Array.from({ length: size ** 2 }, (_, position) => {
   const tile = document.createElement('button');
   tile.type = 'button';
   tile.className = 'tile';
-  tile.classList.toggle('marked', frame.includes(position));
   tile.addEventListener('click', () => slide(position));
   return tile;
 });
@@ -61,15 +56,16 @@ function paintBoard(stride = 0) {
       tile.append(face);
     }
   }
-  sumLabel.textContent = puzzle.sumInFrame(board, frame);
 }
 
 function newQuestion() {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   const random = puzzle.randomFrom(seed);
+  const center = Math.floor(random() * size ** 2);
   board = puzzle.newBoard(random, 60, size);
-  const previous = { ...goal, key: frame.join(',') + '/' + goal.value };
-  goal = puzzle.generateGoal(board, 6, random, [previous], size, [frame]);
+  const frame = puzzle.frameAt(center, size);
+  const question = puzzle.generateGoal(board, 6, random, goal ? [goal] : [], size, [frame]);
+  goal = { ...question, center };
 }
 
 function slide(position) {
@@ -105,6 +101,8 @@ form.addEventListener('submit', event => {
   status.textContent = '记住十字架中心的数字。';
   screenLabel.hidden = false;
   screenLabel.classList.add('countdown');
+  targetCells.forEach((cell, index) => cell.classList.toggle('active', goal.indices.includes(index)));
+  targetCells[goal.center].append(targetValue);
   targetValue.textContent = goal.value;
   paintBoard();
 
@@ -148,4 +146,5 @@ document.addEventListener('keydown', event => {
   if (row >= 0 && row < size && column >= 0 && column < size) slide(row * size + column);
 });
 
+newQuestion();
 paintBoard();

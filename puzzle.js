@@ -1,14 +1,8 @@
 'use strict';
 
 const puzzle = (() => {
-  const cross = [[0, 2], [1, 0], [1, 1], [1, 2], [1, 3], [2, 2], [3, 2]];
   const flashLead = 3000;
   const flashGrace = 40;
-  const reference = {
-    board: [2, 5, 15, 1, 11, 12, 6, 13, 8, 10, 9, 14, 0, 7, 4, 3],
-    indices: buildFrames(4)[0],
-    value: 80
-  };
 
   function flashMilliseconds(seconds) {
     const centiseconds = Math.round(seconds * 100);
@@ -67,14 +61,14 @@ const puzzle = (() => {
     return walk(cells, steps, random, size);
   }
 
-  function buildFrames(size) {
-    const frames = [];
-    for (let row = 0; row <= size - 4; row += 1) {
-      for (let column = 0; column <= size - 4; column += 1) {
-        frames.push(cross.map(([y, x]) => (y + row) * size + x + column));
-      }
+  function frameAt(center, size) {
+    const row = Math.floor(center / size);
+    const column = center % size;
+    const cells = [];
+    for (let index = 0; index < size ** 2; index += 1) {
+      if (Math.floor(index / size) === row || index % size === column) cells.push(index);
     }
-    return frames;
+    return cells;
   }
 
   function sumInFrame(board, indices) {
@@ -126,7 +120,7 @@ const puzzle = (() => {
     throw new Error('无法生成可达成的目标框');
   }
 
-  return { reference, randomFrom, slideStride, newBoard, sumInFrame, solved, generateGoal,
+  return { randomFrom, slideStride, newBoard, frameAt, solved, generateGoal,
     flashMilliseconds, flashSchedule };
 })();
 
