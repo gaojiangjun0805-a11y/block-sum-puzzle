@@ -62,7 +62,7 @@ function newQuestion() {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   const random = puzzle.randomFrom(seed);
   const center = Math.floor(random() * size ** 2);
-  board = puzzle.newBoard(random, 60, size);
+  board = puzzle.newBoard(size);
   const frame = puzzle.frameAt(center, size);
   const question = puzzle.generateGoal(board, 6, random, goal ? [goal] : [], size, [frame]);
   goal = { ...question, center };

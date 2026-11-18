@@ -56,9 +56,8 @@ const puzzle = (() => {
     return cells;
   }
 
-  function newBoard(random, steps, size) {
-    const cells = Array.from({ length: size ** 2 }, (_, index) => (index + 1) % (size ** 2));
-    return walk(cells, steps, random, size);
+  function newBoard(size) {
+    return Array.from({ length: size ** 2 }, (_, index) => (index + 1) % (size ** 2));
   }
 
   function frameAt(center, size) {
