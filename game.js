@@ -7,11 +7,14 @@ const duration = document.querySelector('#duration');
 const start = document.querySelector('#start');
 const screenLabel = document.querySelector('#screen-label');
 const screenCross = document.querySelector('#screen-cross');
+const elapsed = document.querySelector('#elapsed');
 const status = document.querySelector('#status');
 
 let board;
 let goal;
 let phase = 'ready';
+let playStartedAt;
+let timerFrame = null;
 
 const targetCells = Array.from({ length: size ** 2 }, () => {
   const cell = document.createElement('div');
@@ -68,6 +71,23 @@ function newQuestion() {
   goal = { ...question, center };
 }
 
+function showElapsed(milliseconds) {
+  const seconds = (Math.max(0, milliseconds) / 1000).toFixed(2);
+  if (elapsed.textContent === seconds) return;
+  elapsed.textContent = seconds;
+  elapsed.dateTime = 'PT' + seconds + 'S';
+}
+
+function updateTimer(now) {
+  showElapsed(now - playStartedAt);
+  timerFrame = requestAnimationFrame(updateTimer);
+}
+
+function stopTimer() {
+  if (timerFrame !== null) cancelAnimationFrame(timerFrame);
+  timerFrame = null;
+}
+
 function slide(position) {
   if (phase !== 'playing') return;
   const blank = board.indexOf(0);
@@ -79,6 +99,8 @@ function slide(position) {
   board[position] = 0;
   if (puzzle.solved(board, goal)) {
     phase = 'finished';
+    stopTimer();
+    showElapsed(performance.now() - playStartedAt);
     status.textContent = '答对了';
     screenLabel.hidden = false;
     screenLabel.textContent = '答对了';
@@ -95,6 +117,8 @@ form.addEventListener('submit', event => {
     return;
   }
   if (phase !== 'ready') newQuestion();
+  stopTimer();
+  showElapsed(0);
   phase = 'preview';
   duration.disabled = true;
   start.disabled = true;
@@ -112,19 +136,21 @@ form.addEventListener('submit', event => {
   function paint(now) {
     const counting = now < flash.at;
     // Let one frame through when the 10 ms interval lands between refreshes.
-    const show = !counting && (now < flash.until || (!shown && now < flash.answerAt));
+    const show = !counting && (!shown || now < flash.until);
     screenLabel.hidden = !counting;
     if (counting) screenLabel.textContent = String(Math.ceil((flash.at - now) / 1000));
     screenCross.hidden = !show;
     if (show) shown = true;
 
-    if (now < flash.answerAt) {
+    if (counting || show) {
       requestAnimationFrame(paint);
       return;
     }
     screenLabel.classList.remove('countdown');
     targetValue.textContent = '';
     phase = 'playing';
+    playStartedAt = performance.now();
+    timerFrame = requestAnimationFrame(updateTimer);
     duration.disabled = false;
     start.disabled = false;
     start.textContent = '下一题';

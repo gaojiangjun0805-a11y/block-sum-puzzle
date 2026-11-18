@@ -85,6 +85,8 @@ h1 {
 }
 .start { min-height: 43px; padding: 5px 8px; border: 0; border-radius: 3px; background: var(--yellow); color: var(--ink); font-weight: 900; cursor: pointer; }
 .start:disabled { opacity: .65; cursor: default; }
+.time-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; color: #d0d1d2; font-size: 13px; }
+.time-readout time { color: var(--yellow); font: italic 950 clamp(18px, 3vw, 34px)/1 var(--digits); font-variant-numeric: tabular-nums; }
 .status { min-height: 2.7em; color: #d1d1ca; font-size: 13px; line-height: 1.45; }
 .play {
   width: min(100%, 480px, max(270px, calc(100svh - 450px)));
@@ -129,6 +131,7 @@ h1 {
   .settings { padding: 8px; gap: 6px; font-size: 13px; }
   .duration { gap: 4px; }
   .duration input { width: 67px; font-size: 15px; }
+  .time-readout { font-size: 11px; gap: 4px; }
   .status { font-size: 11px; }
   .play { width: min(100%, 360px); }
 }

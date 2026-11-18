@@ -2,7 +2,6 @@
 
 const puzzle = (() => {
   const flashLead = 3000;
-  const flashGrace = 40;
 
   function flashMilliseconds(seconds) {
     const centiseconds = Math.round(seconds * 100);
@@ -12,7 +11,7 @@ const puzzle = (() => {
 
   function flashSchedule(now, duration) {
     const at = now + flashLead;
-    return { at, until: at + duration, answerAt: at + duration + flashGrace };
+    return { at, until: at + duration };
   }
 
   function randomFrom(seed) {
