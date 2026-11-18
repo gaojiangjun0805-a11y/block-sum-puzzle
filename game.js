@@ -1,39 +1,70 @@
 'use strict';
 
-const size = 4;
 const boardElement = document.querySelector('#board');
 const form = document.querySelector('#settings');
 const duration = document.querySelector('#duration');
+const boardSize = document.querySelector('#board-size');
+const questionCount = document.querySelector('#question-count');
+const tabs = document.querySelector('#question-tabs');
+const flashOrder = document.querySelector('#flash-order');
+const verify = document.querySelector('#verify');
+const verificationResult = document.querySelector('#verification-result');
+const questionNames = ['题目一', '题目二', '题目三'];
+const countdownLength = 3000;
+const flashGap = 80;
 const start = document.querySelector('#start');
 const screenLabel = document.querySelector('#screen-label');
 const screenCross = document.querySelector('#screen-cross');
 const elapsed = document.querySelector('#elapsed');
 const status = document.querySelector('#status');
 
-let board;
-let goal;
+let size;
+let questions = [];
+let activeIndex = 0;
 let phase = 'ready';
 let playStartedAt;
 let timerFrame = null;
+let tiles;
+let targetCells;
 
-const targetCells = Array.from({ length: size ** 2 }, () => {
-  const cell = document.createElement('div');
-  cell.className = 'cross-cell';
-  return cell;
-});
 const targetValue = document.createElement('b');
-screenCross.append(...targetCells);
 
-const tiles = Array.from({ length: size ** 2 }, (_, position) => {
-  const tile = document.createElement('button');
-  tile.type = 'button';
-  tile.className = 'tile';
-  tile.addEventListener('click', () => slide(position));
-  return tile;
-});
-boardElement.append(...tiles);
+function setupBoard() {
+  size = Number(boardSize.value);
+  for (const grid of [boardElement, screenCross]) {
+    grid.style.setProperty('--size', size);
+    grid.dataset.size = size;
+  }
+  targetCells = Array.from({ length: size ** 2 }, () => {
+    const cell = document.createElement('div');
+    cell.className = 'cross-cell';
+    return cell;
+  });
+  screenCross.replaceChildren(...targetCells);
+  tiles = Array.from({ length: size ** 2 }, (_, position) => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'tile';
+    tile.addEventListener('click', () => slide(position));
+    return tile;
+  });
+  boardElement.replaceChildren(...tiles);
+
+  stopTimer();
+  showElapsed(0);
+  phase = 'ready';
+  screenLabel.hidden = false;
+  screenLabel.textContent = '等待开始';
+  start.textContent = '开始测试';
+  status.textContent = '闪示结束后开始推盘。';
+  newQuestions();
+  paintBoard();
+}
 
 function paintBoard(stride = 0) {
+  const { board } = questions[activeIndex];
+  const name = questions.length > 1 ? questionNames[activeIndex] + ' ' : '';
+  boardElement.setAttribute('aria-label', name + size + '×' + size + ' 推盘');
   const blank = board.indexOf(0);
   for (const [index, tile] of tiles.entries()) {
     const value = board[index];
@@ -61,14 +92,43 @@ function paintBoard(stride = 0) {
   }
 }
 
-function newQuestion() {
+function newQuestions() {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   const random = puzzle.randomFrom(seed);
-  const center = Math.floor(random() * size ** 2);
-  board = puzzle.newBoard(size);
-  const frame = puzzle.frameAt(center, size);
-  const question = puzzle.generateGoal(board, 6, random, goal ? [goal] : [], size, [frame]);
-  goal = { ...question, center };
+  const used = questions.map(question => question.goal);
+  questions = Array.from({ length: Number(questionCount.value) }, () => {
+    const center = Math.floor(random() * size ** 2);
+    const board = puzzle.newBoard(size);
+    const frame = puzzle.frameAt(center, size);
+    const goal = puzzle.generateGoal(board, 6, random, used, size, [frame]);
+    used.push(goal);
+    return { board, center, goal };
+  });
+  activeIndex = 0;
+  verificationResult.hidden = true;
+  tabs.hidden = questions.length === 1;
+  tabs.replaceChildren(...questions.map((_, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = questionNames[index];
+    button.addEventListener('click', () => {
+      activeIndex = index;
+      syncAnswerControls();
+      paintBoard();
+    });
+    return button;
+  }));
+  syncAnswerControls();
+}
+
+function syncAnswerControls() {
+  const canAnswer = phase === 'playing';
+  for (const [index, button] of [...tabs.children].entries()) {
+    button.setAttribute('aria-pressed', String(index === activeIndex));
+    button.disabled = !canAnswer && phase !== 'finished';
+  }
+  verify.hidden = questions.length === 1;
+  verify.disabled = !canAnswer;
 }
 
 function showElapsed(milliseconds) {
@@ -90,6 +150,8 @@ function stopTimer() {
 
 function slide(position) {
   if (phase !== 'playing') return;
+  const question = questions[activeIndex];
+  const { board } = question;
   const blank = board.indexOf(0);
   const stride = puzzle.slideStride(blank, position, size);
   if (!stride) return;
@@ -97,15 +159,60 @@ function slide(position) {
     board[index] = board[index + stride];
   }
   board[position] = 0;
-  if (puzzle.solved(board, goal)) {
-    phase = 'finished';
-    stopTimer();
-    showElapsed(performance.now() - playStartedAt);
-    status.textContent = '答对了';
-    screenLabel.hidden = false;
-    screenLabel.textContent = '答对了';
-  }
+  verificationResult.hidden = true;
+  if (questions.length === 1 && puzzle.solved(board, question.goal)) finish();
   paintBoard(stride);
+}
+
+function finish() {
+  phase = 'finished';
+  stopTimer();
+  showElapsed(performance.now() - playStartedAt);
+  const message = questions.length === 1 ? '答对了' : '全部答对了';
+  status.textContent = message;
+  screenLabel.hidden = false;
+  screenLabel.textContent = message;
+  verificationResult.hidden = true;
+  syncAnswerControls();
+}
+
+verify.addEventListener('click', () => {
+  if (phase !== 'playing') return;
+  const incomplete = questions.flatMap((question, index) =>
+    puzzle.solved(question.board, question.goal) ? [] : [questionNames[index]]
+  );
+  if (!incomplete.length) {
+    finish();
+    paintBoard();
+    return;
+  }
+  verificationResult.textContent = incomplete.join('、') + '未通过。';
+  verificationResult.hidden = false;
+});
+
+function showQuestion(index) {
+  const { center, goal } = questions[index];
+  targetCells.forEach((cell, position) => cell.classList.toggle('active', goal.indices.includes(position)));
+  targetCells[center].append(targetValue);
+  targetValue.textContent = goal.value;
+  flashOrder.textContent = questionNames[index];
+  flashOrder.hidden = questions.length === 1;
+  screenCross.hidden = false;
+}
+
+function beginAnswering() {
+  targetValue.textContent = '';
+  phase = 'playing';
+  playStartedAt = performance.now();
+  timerFrame = requestAnimationFrame(updateTimer);
+  duration.disabled = false;
+  boardSize.disabled = false;
+  questionCount.disabled = false;
+  start.disabled = false;
+  start.textContent = questions.length === 1 ? '下一题' : '下一组';
+  status.textContent = '开始推盘';
+  syncAnswerControls();
+  paintBoard();
 }
 
 form.addEventListener('submit', event => {
@@ -116,61 +223,63 @@ form.addEventListener('submit', event => {
     status.textContent = '请输入 0.01 秒以上，最多两位小数。';
     return;
   }
-  if (phase !== 'ready') newQuestion();
+  const restart = phase !== 'ready';
+  phase = 'preview';
+  if (restart) newQuestions();
+  else syncAnswerControls();
   stopTimer();
   showElapsed(0);
-  phase = 'preview';
   duration.disabled = true;
+  boardSize.disabled = true;
+  questionCount.disabled = true;
   start.disabled = true;
   status.textContent = '记住交叉格的位置和数字。';
   screenLabel.hidden = false;
   screenLabel.classList.add('countdown');
-  targetCells.forEach((cell, index) => cell.classList.toggle('active', goal.indices.includes(index)));
-  targetCells[goal.center].append(targetValue);
-  targetValue.textContent = goal.value;
   paintBoard();
 
-  const flash = puzzle.flashSchedule(performance.now(), milliseconds);
-  let shown = false;
+  let showAt = performance.now() + countdownLength;
+  let hideAt = null;
+  let index = 0;
 
   function paint(now) {
-    const counting = now < flash.at;
-    // Let one frame through when the 10 ms interval lands between refreshes.
-    const show = !counting && (!shown || now < flash.until);
-    screenLabel.hidden = !counting;
-    if (counting) screenLabel.textContent = String(Math.ceil((flash.at - now) / 1000));
-    screenCross.hidden = !show;
-    if (show) shown = true;
-
-    if (counting || show) {
-      requestAnimationFrame(paint);
-      return;
+    if (now < showAt) {
+      if (index === 0) screenLabel.textContent = String(Math.ceil((showAt - now) / 1000));
+    } else if (hideAt === null) {
+      screenLabel.hidden = true;
+      screenLabel.classList.remove('countdown');
+      showQuestion(index);
+      hideAt = now + milliseconds;
+    } else if (now >= hideAt) {
+      screenCross.hidden = true;
+      flashOrder.hidden = true;
+      index += 1;
+      if (index === questions.length) {
+        beginAnswering();
+        return;
+      }
+      showAt = now + flashGap;
+      hideAt = null;
     }
-    screenLabel.classList.remove('countdown');
-    targetValue.textContent = '';
-    phase = 'playing';
-    playStartedAt = performance.now();
-    timerFrame = requestAnimationFrame(updateTimer);
-    duration.disabled = false;
-    start.disabled = false;
-    start.textContent = '下一题';
-    status.textContent = '开始推盘';
-    paintBoard();
+
+    requestAnimationFrame(paint);
   }
   requestAnimationFrame(paint);
 });
 
 const directions = { ArrowLeft: [0, 1], ArrowRight: [0, -1], ArrowUp: [1, 0], ArrowDown: [-1, 0] };
 document.addEventListener('keydown', event => {
-  if (phase !== 'playing' || event.target instanceof HTMLInputElement || event.ctrlKey || event.altKey || event.metaKey) return;
+  if (phase !== 'playing' || event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement ||
+      event.ctrlKey || event.altKey || event.metaKey) return;
   const direction = directions[event.key];
   if (!direction) return;
-  const blank = board.indexOf(0);
+  const blank = questions[activeIndex].board.indexOf(0);
   const row = Math.floor(blank / size) + direction[0];
   const column = blank % size + direction[1];
   event.preventDefault();
   if (row >= 0 && row < size && column >= 0 && column < size) slide(row * size + column);
 });
 
-newQuestion();
-paintBoard();
+boardSize.addEventListener('change', setupBoard);
+questionCount.addEventListener('change', setupBoard);
+setupBoard();

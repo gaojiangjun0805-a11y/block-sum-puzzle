@@ -1,17 +1,10 @@
 'use strict';
 
 const puzzle = (() => {
-  const flashLead = 3000;
-
   function flashMilliseconds(seconds) {
     const centiseconds = Math.round(seconds * 100);
     if (seconds < .01 || !Number.isSafeInteger(centiseconds) || Math.abs(seconds * 100 - centiseconds) > 1e-6) return null;
     return centiseconds * 10;
-  }
-
-  function flashSchedule(now, duration) {
-    const at = now + flashLead;
-    return { at, until: at + duration };
   }
 
   function randomFrom(seed) {
@@ -118,8 +111,7 @@ const puzzle = (() => {
     throw new Error('无法生成可达成的目标框');
   }
 
-  return { randomFrom, slideStride, newBoard, frameAt, solved, generateGoal,
-    flashMilliseconds, flashSchedule };
+  return { randomFrom, slideStride, newBoard, frameAt, solved, generateGoal, flashMilliseconds };
 })();
 
 if (typeof module !== 'undefined') module.exports = puzzle;
