@@ -75,6 +75,7 @@ time, .target-panel b, .target-panel strong, .statline b, .goal-button b, .fall-
 time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .toolbar { display: flex; justify-content: space-between; align-items: stretch; gap: 8px; margin: clamp(8px, 1.5vh, 17px) 0; }
 .modes, .settings, .segment { display: flex; gap: 5px; }
+.modes { flex-wrap: wrap; }
 .settings { flex-wrap: wrap; justify-content: end; }
 .segment + .segment { margin-left: clamp(0px, 1vw, 14px); }
 .toolbar button, .action, #rank-pages button {
@@ -291,6 +292,27 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .host-panel form { margin-block: 15px; }
 input, select { background: var(--black); color: #fff; border: 1px solid #888; font-size: 18px; min-height: 44px; padding: 6px 12px; }
 #seat-number { width: 112px; }
+.flash-config { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.flash-config input { width: 105px; }
+.flash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: #111214;
+}
+.flash-figure { width: min(72vw, 78vh, 780px); }
+.flash-figure .shape { gap: 4px; }
+.flash-figure .shape i { display: grid; place-items: center; background: transparent; }
+.flash-figure .shape i.filled { background: var(--yellow); }
+.flash-figure b, .flash-countdown {
+  font: italic 950 clamp(23px, 7.75vmin, 106px)/1 var(--digits);
+  font-variant-numeric: tabular-nums;
+}
+.flash-figure b { color: #14120a; }
+.flash-countdown { color: var(--yellow); font-size: clamp(32px, 16vmin, 170px); }
 body[data-view="screen"] .clock, body[data-view="rank"] .clock { color: #151313; background: var(--yellow); }
 body[data-view="rank"] .masthead { grid-template-columns: minmax(0, 1fr) auto auto; }
 body[data-view="rank"] .mode-tag { display: none; }

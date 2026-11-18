@@ -21,8 +21,8 @@ function newBoard(random, steps) {
   return puzzle.newBoard(random, steps, config.size);
 }
 
-function makeGoal(board, length, steps, random, excluded) {
-  const goal = puzzle.generateGoal(board, length, steps, random, excluded, config.size, state.catalog);
+function makeGoal(board, steps, random, excluded) {
+  const goal = puzzle.generateGoal(board, steps, random, excluded, config.size, state.catalog);
   return { ...goal, id: state.nextId++ };
 }
 
@@ -64,7 +64,7 @@ function createPlayer(board, index) {
 
 function currentGoals(player) {
   if (roomPlayer) return player.goals;
-  if (config.mode === 'sprint') return [state.goal];
+  if (puzzle.isSingleGoal(config.mode)) return [state.goal];
   if (config.mode === 'fall') return state.wave.goals;
   return player.goals;
 }
@@ -89,7 +89,7 @@ function valueFor(goal, className) {
 function renderGoalButtons(player) {
   const goals = currentGoals(player);
   const container = player.goalButtons;
-  container.hidden = config.mode === 'sprint' || (config.mode === 'fall' && goals.length <= 1);
+  container.hidden = puzzle.isSingleGoal(config.mode) || (config.mode === 'fall' && goals.length <= 1);
   if (container.hidden) return;
   container.style.setProperty('--goals', goals.length);
 
@@ -160,14 +160,17 @@ function renderPlayer(player, stride = 0) {
 
   const sum = goal ? sumInFrame(player.board, goal.indices) : null;
   player.sumLabel.textContent = sum ?? '·';
-  player.goalValue.textContent = goal?.value ?? '·';
-  const shapeKey = goal ? config.size + ':' + goal.indices.join(',') : '';
+  const memory = config.mode === 'memory';
+  player.goalValue.textContent = memory ? '？' : (goal?.value ?? '·');
+  const shapeKey = goal && !memory ? config.size + ':' + goal.indices.join(',') : '';
   if (player.goalShape.dataset.frame !== shapeKey) {
     player.goalShape.dataset.frame = shapeKey;
-    player.goalShape.replaceChildren(...(goal ? [shapeFor(goal)] : []));
+    player.goalShape.replaceChildren(...(shapeKey ? [shapeFor(goal)] : []));
   }
   if (!goal || goal.indices.includes(gap)) {
     player.difference.textContent = goal ? '框内未满' : '等待目标';
+  } else if (memory) {
+    player.difference.textContent = state.phase === 'finished' ? '本题结束' : '回想目标和';
   } else if (sum === goal.value) {
     player.difference.textContent = '已达成';
   } else {
@@ -191,13 +194,17 @@ function animateWave(now) {
 function renderHeader() {
   const mode = rules[config.mode];
   const timed = Boolean(mode.seconds);
+  const memory = config.mode === 'memory';
   elements['mode-tag'].textContent = mode.title;
   elements['mode-rule'].textContent = mode.description;
   elements['clock-label'].textContent = timed ? '剩余' : '用时';
   elements['seat-tag'].textContent = roomPlayer ? '选手 ' + displays.seatLabel(roomCredentials.seat)
     : config.playerCount === 1 ? '单人练习' : '同屏双人';
   elements.falling.hidden = config.mode !== 'fall' || roomPlayer;
-  elements.start.hidden = roomPlayer || !timed || state.phase !== 'ready';
+  elements.start.hidden = roomPlayer || (!timed && !memory) || state.phase !== 'ready';
+  elements.start.textContent = memory ? '开始闪示' : '开始挑战';
+  elements['practice-flash-config'].hidden = roomPlayer || !memory;
+  elements['practice-flash-time'].disabled = state.phase === 'preview' || state.phase === 'playing';
   elements.game.classList.toggle('dual', config.playerCount === 2);
   elements.game.dataset.mode = config.mode;
   const utilityParent = config.playerCount === 1
@@ -221,7 +228,12 @@ function practicePacket() {
     round: practiceRound, phase: state.phase, mode: config.mode, size: config.size, now: Date.now(),
     start: state.startedAt === null ? null : epoch + state.startedAt,
     end: state.endedAt === undefined ? null : epoch + state.endedAt,
-    goal: state.goal, wave, lastEvent: state.lastEvent, status: elements.status.textContent, capacity: config.playerCount,
+    goal: config.mode === 'memory' ? undefined : state.goal,
+    flash: state.flash ? {
+      at: epoch + state.flash.at, until: epoch + state.flash.until, answerAt: epoch + state.flash.answerAt,
+    } : null,
+    flashGoal: state.phase === 'preview' ? state.goal : undefined,
+    wave, lastEvent: state.lastEvent, status: elements.status.textContent, capacity: config.playerCount,
     rows: state.players.map(player => ({ number: player.index + 1, score: player.score })),
   };
 }
@@ -243,7 +255,7 @@ function updateClock(now) {
 
 function makeWave(board, now, elapsed) {
   return puzzle.generateWave(board, now, elapsed, (state.wave?.number ?? 0) + 1,
-    (cells, length, steps, goals) => makeGoal(cells, length, steps, state.random, goals));
+    (cells, steps, goals) => makeGoal(cells, steps, state.random, goals));
 }
 
 function setup() {
@@ -256,15 +268,15 @@ function setup() {
     catalog: buildFrames(config.size),
     players: Array.from({ length: config.playerCount }, (_, index) => createPlayer(board, index))
   };
-  if (config.mode === 'sprint') {
+  if (puzzle.isSingleGoal(config.mode)) {
     state.goal = sample
       ? { indices: reference.indices, value: reference.value, id: state.nextId++ }
-      : makeGoal(board, config.size === 4 ? 7 : 5, config.size + 4, random, []);
+      : makeGoal(board, config.size + 4, random, []);
   }
   if (config.mode === 'fall') state.wave = makeWave(board, performance.now(), 0);
   if (config.mode === 'score') {
-    const goals = [makeGoal(board, 4, 4, random, [])];
-    goals.push(makeGoal(board, 5, 5, random, goals));
+    const goals = [makeGoal(board, 4, random, [])];
+    goals.push(makeGoal(board, 5, random, goals));
     for (const player of state.players) {
       player.goals = goals.slice();
       player.random = randomFrom(config.seed ^ (config.size << 12) ^ 0xE5CE);
@@ -279,10 +291,25 @@ function setup() {
     animateWave(state.wave.startedAt);
   }
   updateClock(performance.now());
-  setStatus(config.mode === 'sprint' ? '滑动第一块数字开始计时。' : '准备就绪');
+  const status = { sprint: '滑动第一块数字开始计时。', memory: '打开观众大屏，设置时长后开始闪示。' };
+  setStatus(status[config.mode] ?? '准备就绪');
 }
 
 function begin(now) {
+  if (config.mode === 'memory') {
+    const input = elements['practice-flash-time'];
+    const duration = puzzle.flashMilliseconds(input.valueAsNumber);
+    if (duration === null) {
+      setStatus('闪示时长请填写 0.01 秒或以上，最多两位小数。');
+      input.focus();
+      return;
+    }
+    state.phase = 'preview';
+    state.flash = puzzle.flashSchedule(now, duration);
+    renderHeader();
+    setStatus('请看大屏，闪示结束后开始推盘。');
+    return;
+  }
   state.phase = 'playing';
   state.startedAt = now;
   if (state.wave) state.wave.startedAt = now;
@@ -294,6 +321,7 @@ function begin(now) {
 function finish(now, message) {
   state.phase = 'finished';
   state.endedAt = now;
+  elements['practice-flash-time'].disabled = false;
   updateClock(now);
   setStatus(message, true);
   for (const player of state.players) renderPlayer(player);
@@ -328,6 +356,12 @@ function nextWave(now, notice) {
 }
 
 function updateTime(now) {
+  if (state.phase === 'preview' && now >= state.flash.answerAt) {
+    state.phase = 'playing';
+    state.startedAt = state.flash.answerAt;
+    setStatus('开始推盘');
+    for (const player of state.players) renderPlayer(player);
+  }
   if (state.phase !== 'playing') return;
   const limit = rules[config.mode].seconds;
   if (limit && now - state.startedAt >= limit * 1000) {
@@ -351,10 +385,13 @@ function checkGoal(player, now) {
   const goal = currentGoal(player);
   if (!goal || !solved(player.board, goal)) return;
   const points = config.mode === 'score' ? goal.indices.length : 1;
-  state.lastEvent = { number: player.index + 1, points, target: goal.value };
-  if (config.mode === 'sprint') {
+  state.lastEvent = {
+    number: player.index + 1, points, target: config.mode === 'memory' ? undefined : goal.value,
+  };
+  if (puzzle.isSingleGoal(config.mode)) {
     player.score = points;
-    const message = config.playerCount === 2 ? player.title + ' 获胜' : '已达成目标 ' + goal.value;
+    const message = config.playerCount === 2 ? player.title + ' 获胜'
+      : config.mode === 'memory' ? '已达成目标' : '已达成目标 ' + goal.value;
     finish(now, message + ' · ' + player.moves + ' 步');
     celebrate(player, goal);
     return;
@@ -377,7 +414,7 @@ function checkGoal(player, now) {
 
   player.score += goal.indices.length;
   const remaining = player.goals.filter(item => item.id !== goal.id);
-  const newGoal = makeGoal(player.board, goal.indices.length, 4 + goal.indices.length % 3, player.random, remaining);
+  const newGoal = makeGoal(player.board, 5, player.random, remaining);
   player.goals = player.goals.map(item => item.id === goal.id ? newGoal : item);
   player.selected = newGoal.id;
   setStatus(player.title + ' 消除 ' + goal.value + '，得 ' + goal.indices.length + ' 分');
@@ -393,7 +430,7 @@ function slide(playerIndex, position) {
   const now = performance.now();
   const waveNumber = state.wave?.number;
   updateTime(now);
-  if (waveNumber !== state.wave?.number || state.phase === 'finished') return;
+  if (waveNumber !== state.wave?.number || state.phase === 'finished' || state.phase === 'preview') return;
   if (state.phase === 'ready' && config.mode !== 'sprint') return;
 
   const player = state.players[playerIndex];

@@ -15,22 +15,32 @@ const puzzle = (() => {
       title: '独立计分',
       seconds: 90,
       description: '每位选手各有两个目标，点选其一进行挑战。完成后换入新目标，框内每个方块计 1 分。'
+    },
+    memory: {
+      title: '闪记推盘',
+      description: '记住大屏一闪而过的目标和。熄屏后开始推盘，先达成的一方获胜。'
     }
   };
 
+  const cross = [[0, 2], [1, 0], [1, 1], [1, 2], [1, 3], [2, 2], [3, 2]];
+  const flashLead = 3000;
+  const flashGrace = 40;
   const reference = {
     board: [2, 5, 15, 1, 11, 12, 6, 13, 8, 10, 9, 14, 0, 7, 4, 3],
-    indices: [2, 4, 5, 6, 7, 10, 14],
+    indices: buildFrames(4)[0],
     value: 80
   };
 
-  const sourceShapes = [
-    [[0, 0], [1, 0], [1, 1], [1, 2]],
-    [[0, 1], [1, 0], [1, 1], [1, 2]],
-    [[0, 1], [1, 0], [1, 1], [1, 2], [2, 1]],
-    [[0, 0], [0, 1], [1, 1], [2, 1], [2, 2]],
-    [[0, 2], [1, 0], [1, 1], [1, 2], [1, 3], [2, 2], [3, 2]]
-  ];
+  function flashMilliseconds(seconds) {
+    const centiseconds = Math.round(seconds * 100);
+    if (seconds < .01 || !Number.isSafeInteger(centiseconds) || Math.abs(seconds * 100 - centiseconds) > 1e-6) return null;
+    return centiseconds * 10;
+  }
+
+  function flashSchedule(now, duration) {
+    const at = now + flashLead;
+    return { at, until: at + duration, answerAt: at + duration + flashGrace };
+  }
 
   function randomFrom(seed) {
     return () => {
@@ -79,24 +89,13 @@ const puzzle = (() => {
   }
 
   function buildFrames(size) {
-    const catalog = new Map([[4, new Map()], [5, new Map()], [7, new Map()]]);
-    for (const source of sourceShapes) {
-      let points = source;
-      for (let turn = 0; turn < 4; turn += 1) {
-        const top = Math.min(...points.map(([row]) => row));
-        const left = Math.min(...points.map(([, column]) => column));
-        const height = Math.max(...points.map(([row]) => row)) - top + 1;
-        const width = Math.max(...points.map(([, column]) => column)) - left + 1;
-        for (let row = 0; row <= size - height; row += 1) {
-          for (let column = 0; column <= size - width; column += 1) {
-            const indices = points.map(([y, x]) => (y - top + row) * size + x - left + column).sort((a, b) => a - b);
-            catalog.get(source.length).set(indices.join(','), indices);
-          }
-        }
-        points = points.map(([row, column]) => [column, -row]);
+    const frames = [];
+    for (let row = 0; row <= size - 4; row += 1) {
+      for (let column = 0; column <= size - 4; column += 1) {
+        frames.push(cross.map(([y, x]) => (y + row) * size + x + column));
       }
     }
-    return new Map([...catalog].map(([length, frames]) => [length, [...frames.values()]]));
+    return frames;
   }
 
   function sumInFrame(board, indices) {
@@ -107,8 +106,7 @@ const puzzle = (() => {
     return goal.indices.every(index => board[index] !== 0) && sumInFrame(board, goal.indices) === goal.value;
   }
 
-  function generateGoal(board, length, steps, random, excluded, size, catalog) {
-    const frames = catalog.get(length);
+  function generateGoal(board, steps, random, excluded, size, frames) {
     const used = new Set(excluded.map(goal => goal.key));
 
     function findGoal(cells) {
@@ -128,14 +126,23 @@ const puzzle = (() => {
       if (goal) return goal;
     }
 
-    // A frame containing the current gap can be completed by moving its gap outside.
-    const gap = board.indexOf(0);
-    for (const tile of neighbors(gap, size)) {
-      const cells = board.slice();
-      cells[gap] = cells[tile];
-      cells[tile] = 0;
-      const goal = findGoal(cells);
-      if (goal) return goal;
+    // A single fixed frame can repeat sums on short random walks. Search reachable states in order.
+    const queue = [board];
+    const visited = new Set([board.join(',')]);
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      const gap = current.indexOf(0);
+      for (const tile of neighbors(gap, size)) {
+        const cells = current.slice();
+        cells[gap] = cells[tile];
+        cells[tile] = 0;
+        const key = cells.join(',');
+        if (visited.has(key)) continue;
+        const goal = findGoal(cells);
+        if (goal) return goal;
+        visited.add(key);
+        queue.push(cells);
+      }
     }
     throw new Error('无法生成可达成的目标框');
   }
@@ -145,8 +152,7 @@ const puzzle = (() => {
     const slots = level + 1;
     const goals = [];
     for (let lane = 0; lane < slots; lane += 1) {
-      const length = [4, 5, 7][Math.min(level, lane)];
-      const goal = goalFor(board, length, 3 + level + lane, goals);
+      const goal = goalFor(board, 3 + level + lane, goals);
       goals.push({ ...goal, lane });
     }
     return {
@@ -155,7 +161,8 @@ const puzzle = (() => {
     };
   }
 
-  return { rules, reference, randomFrom, slideStride, newBoard, buildFrames, sumInFrame, solved, generateGoal, generateWave };
+  return { rules, reference, randomFrom, slideStride, newBoard, buildFrames, sumInFrame, solved, generateGoal, generateWave,
+    flashMilliseconds, flashSchedule, isSingleGoal: mode => mode === 'sprint' || mode === 'memory' };
 })();
 
 if (typeof module !== 'undefined') module.exports = puzzle;
