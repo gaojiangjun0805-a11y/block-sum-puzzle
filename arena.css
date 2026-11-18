@@ -203,8 +203,8 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 .play-sidebar:not(:has(> .utility, > .compact-arena:not([hidden]))) { display: none; }
 .utility, .footer, .view-actions { display: flex; align-items: center; justify-content: space-between; gap: 9px; flex-wrap: wrap; }
 .utility { flex: 1; }
-#status, #host-status { color: var(--yellow); font-size: clamp(14px, 1.1vw, 22px); font-weight: 800; }
-.game-actions, .room-links { display: flex; flex-wrap: wrap; gap: 7px; }
+#status { color: var(--yellow); font-size: clamp(14px, 1.1vw, 22px); font-weight: 800; }
+.game-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .footer { margin-top: 11px; color: var(--muted); font-size: clamp(12px, 1vw, 17px); }
 .footer details { flex: auto; }
 .footer details p { margin: 6px 0; max-width: 70ch; }
@@ -293,11 +293,7 @@ time { font-size: clamp(25px, 4vw, 72px); line-height: 1; }
 #rank-pages { display: flex; gap: 4px; }
 #rank-pages button { min-width: 43px; }
 .view-actions { justify-content: end; margin-top: 13px; }
-.join-panel, .host-panel { padding: clamp(14px, 3vw, 46px); margin-top: 18px; }
-.join-panel, .host-panel form { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.host-panel form { margin-block: 15px; }
 input, select { background: var(--black); color: #fff; border: 1px solid #888; font-size: 18px; min-height: 44px; padding: 6px 12px; }
-#seat-number { width: 112px; }
 .flash-config { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 .flash-config input { width: 105px; }
 .flash-overlay {
@@ -306,7 +302,6 @@ input, select { background: var(--black); color: #fff; border: 1px solid #888; f
   z-index: 5;
   display: grid;
   place-items: center;
-  pointer-events: none;
   background: #111214;
 }
 .flash-figure { width: min(72vw, 78vh, 780px); }

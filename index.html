@@ -36,13 +36,6 @@
       </div>
     </div>
 
-    <form id="seat-form" class="panel join-panel" hidden>
-      <label for="seat-number">选手编号</label>
-      <input id="seat-number" name="seat" type="number" min="1" max="50" required inputmode="numeric" placeholder="1–50">
-      <button class="action primary" type="submit">进入比赛</button>
-      <p id="join-status" role="status"></p>
-    </form>
-
     <div class="game-grid" id="game">
       <div id="players" class="players"></div>
       <aside class="play-sidebar">
@@ -60,7 +53,7 @@
             <button type="button" class="action" id="reset" aria-label="重开本局">复位</button>
             <button type="button" class="action" id="new-game">换题</button>
             <a class="action" id="open-screen" href="?view=screen" target="_blank" rel="noopener">观众大屏</a>
-            <a class="action primary" id="open-rank" href="?view=rank" target="_blank" rel="noopener">排行榜</a>
+            <a class="action primary" href="?view=rank&me=1" target="_blank" rel="noopener">排行榜</a>
           </div>
         </div>
       </aside>
@@ -73,10 +66,6 @@
         <p>点空格同行同列的数字，整段滑动一步。目标框横竖各 4 格，共 7 格。框内必须填满，且数字之和恰好等于目标值。</p>
         <p id="mode-rule"></p>
       </details>
-      <nav class="room-links" id="room-links" hidden aria-label="现场比赛">
-        <a href="?view=seat">选手端</a>
-        <a href="?view=host">比赛控制</a>
-      </nav>
     </footer>
   </div>
 
@@ -119,34 +108,6 @@
     </nav>
   </section>
 
-  <section class="panel host-panel" id="host-view" hidden>
-    <h2>比赛控制</h2>
-    <form id="host-form">
-      <label for="host-key">控制码</label>
-      <input id="host-key" type="password" required autocomplete="off">
-      <label for="host-mode">赛制</label>
-      <select id="host-mode">
-        <option value="fall">弹幕抢消</option>
-        <option value="sprint">单题竞速</option>
-        <option value="score">独立计分</option>
-        <option value="memory">闪记推盘</option>
-      </select>
-      <label for="host-size">棋盘</label>
-      <select id="host-size"><option value="4">4×4</option><option value="5">5×5</option></select>
-      <label id="host-flash-config" class="flash-config" for="host-flash-time" hidden>
-        闪示时长 <input id="host-flash-time" type="number" min="0.01" step="0.01" value="1" inputmode="decimal"> 秒
-      </label>
-      <button type="button" class="action" id="host-prepare">准备新局</button>
-      <button type="submit" class="action primary">发令开赛</button>
-    </form>
-    <p id="host-status" role="status"></p>
-    <p id="host-count"></p>
-    <nav class="view-actions">
-      <a class="action" href="?view=seat" target="_blank" rel="noopener">选手端</a>
-      <a class="action" href="?view=screen&room=1" target="_blank" rel="noopener">观众大屏</a>
-      <a class="action" href="?view=rank&room=1" target="_blank" rel="noopener">排行榜</a>
-    </nav>
-  </section>
 </main>
 
 <div id="flash-overlay" class="flash-overlay" hidden>

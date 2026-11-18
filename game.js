@@ -8,13 +8,7 @@ const { rules, reference, randomFrom, slideStride, buildFrames, sumInFrame, solv
 const config = { size: 4, playerCount: 1, mode: 'sprint', seed: 0 };
 const viewQuery = new URLSearchParams(location.search);
 const view = viewQuery.get('view');
-const roomPlayer = view === 'seat';
 let state;
-let roomPacket;
-let roomCredentials;
-let roomEvents;
-let roomOffset = 0;
-let actionPending = false;
 let practiceRound = 0;
 
 function newBoard(random, steps) {
@@ -63,7 +57,6 @@ function createPlayer(board, index) {
 }
 
 function currentGoals(player) {
-  if (roomPlayer) return player.goals;
   if (puzzle.isSingleGoal(config.mode)) return [state.goal];
   if (config.mode === 'fall') return state.wave.goals;
   return player.goals;
@@ -105,10 +98,6 @@ function renderGoalButtons(player) {
       button.setAttribute('aria-label', '选中目标 ' + (index + 1) + '，目标和 ' + goal.value);
       button.append(shapeFor(goal), valueFor(goal, 'goal-value'));
       button.addEventListener('click', () => {
-        if (roomPlayer) {
-          void sendRoomAction('select', { goal: goal.id });
-          return;
-        }
         player.selected = goal.id;
         renderPlayer(player);
         if (state.phase === 'playing') {
@@ -128,7 +117,7 @@ function renderGoalButtons(player) {
 function renderPlayer(player, stride = 0) {
   const goal = currentGoal(player);
   const gap = player.board.indexOf(0);
-  const canSlide = state.phase === 'playing' || (!roomPlayer && config.mode === 'sprint' && state.phase === 'ready');
+  const canSlide = state.phase === 'playing' || (config.mode === 'sprint' && state.phase === 'ready');
   player.tiles.forEach((tile, index) => {
     const value = player.board[index];
     const marked = goal?.indices.includes(index) ?? false;
@@ -198,12 +187,11 @@ function renderHeader() {
   elements['mode-tag'].textContent = mode.title;
   elements['mode-rule'].textContent = mode.description;
   elements['clock-label'].textContent = timed ? '剩余' : '用时';
-  elements['seat-tag'].textContent = roomPlayer ? '选手 ' + displays.seatLabel(roomCredentials.seat)
-    : config.playerCount === 1 ? '单人练习' : '同屏双人';
-  elements.falling.hidden = config.mode !== 'fall' || roomPlayer;
-  elements.start.hidden = roomPlayer || (!timed && !memory) || state.phase !== 'ready';
+  elements['seat-tag'].textContent = config.playerCount === 1 ? '单人练习' : '同屏双人';
+  elements.falling.hidden = config.mode !== 'fall';
+  elements.start.hidden = (!timed && !memory) || state.phase !== 'ready';
   elements.start.textContent = memory ? '开始闪示' : '开始挑战';
-  elements['practice-flash-config'].hidden = roomPlayer || !memory;
+  elements['practice-flash-config'].hidden = !memory;
   elements['practice-flash-time'].disabled = state.phase === 'preview' || state.phase === 'playing';
   elements.game.classList.toggle('dual', config.playerCount === 2);
   elements.game.dataset.mode = config.mode;
@@ -241,7 +229,7 @@ function practicePacket() {
 function setStatus(message, final = false) {
   elements.status.textContent = message;
   elements.status.dataset.result = final;
-  if (!roomPlayer) displays.publish(practicePacket());
+  displays.publish(practicePacket());
 }
 
 function updateClock(now) {
@@ -291,7 +279,7 @@ function setup() {
     animateWave(state.wave.startedAt);
   }
   updateClock(performance.now());
-  const status = { sprint: '滑动第一块数字开始计时。', memory: '打开观众大屏，设置时长后开始闪示。' };
+  const status = { sprint: '滑动第一块数字开始计时。', memory: '设置时长后开始闪示。' };
   setStatus(status[config.mode] ?? '准备就绪');
 }
 
@@ -307,7 +295,7 @@ function begin(now) {
     state.phase = 'preview';
     state.flash = puzzle.flashSchedule(now, duration);
     renderHeader();
-    setStatus('请看大屏，闪示结束后开始推盘。');
+    setStatus('记住闪示的目标和。');
     return;
   }
   state.phase = 'playing';
@@ -423,10 +411,6 @@ function checkGoal(player, now) {
 }
 
 function slide(playerIndex, position) {
-  if (roomPlayer) {
-    if (state?.phase === 'playing') void sendRoomAction('move', { position });
-    return;
-  }
   const now = performance.now();
   const waveNumber = state.wave?.number;
   updateTime(now);
@@ -464,84 +448,6 @@ function onKeyDown(event) {
   }
 }
 
-function showRoomSeat(next) {
-  if (!next.seat) return;
-  const participant = next.seat;
-  const rebuild = next.round !== roomPacket?.round || !state;
-  roomPacket = next;
-  roomOffset = next.now - Date.now();
-  config.mode = next.mode;
-  config.size = next.size;
-  const player = rebuild ? createPlayer(participant.board, 0) : state.players[0];
-  Object.assign(player, {
-    board: participant.board, moves: participant.moves, score: participant.score,
-    selected: participant.selected, goals: participant.goals,
-  });
-  state = { ...next, players: [player] };
-  if (rebuild) elements.players.replaceChildren(player.panel);
-  renderHeader();
-  setStatus(next.status, next.phase === 'finished');
-  renderPlayer(player);
-  elements['seat-form'].hidden = true;
-  elements.game.hidden = false;
-}
-
-async function sendRoomAction(action, options = {}) {
-  if (!roomPacket || !roomCredentials || actionPending || state.phase !== 'playing') return;
-  actionPending = true;
-  try {
-    const next = await displays.post('action', {
-      action, round: roomPacket.round, wave: roomPacket.wave?.number ?? null, ...options,
-    }, roomCredentials);
-    showRoomSeat(next);
-  } catch (error) {
-    setStatus(error.message);
-  } finally {
-    actionPending = false;
-  }
-}
-
-async function joinRoom(number, token) {
-  try {
-    elements['join-status'].textContent = '连接中';
-    const result = await displays.post('join', { seat: number, token });
-    roomCredentials = { seat: number, token: result.token };
-    try { sessionStorage.setItem('速算华容道-选手', JSON.stringify(roomCredentials)); } catch { /* Session can still play. */ }
-    showRoomSeat(result.state);
-    elements['open-screen'].href = '?view=screen&room=1';
-    elements['open-rank'].href = '?view=rank&room=1&me=' + number;
-    roomEvents?.close();
-    roomEvents = displays.connectRoom(showRoomSeat, () => setStatus('比赛连接中断，正在重连'), roomCredentials);
-  } catch (error) {
-    elements['join-status'].textContent = '无法进入比赛 · ' + error.message;
-  }
-}
-
-function installRoomSeat() {
-  document.body.dataset.view = 'seat';
-  document.querySelector('.toolbar').hidden = true;
-  elements.game.hidden = true;
-  elements.start.hidden = true;
-  elements['new-game'].hidden = true;
-  elements['seat-form'].hidden = false;
-  elements['mode-tag'].textContent = '现场比赛';
-  elements['seat-tag'].textContent = '选手端';
-  const requested = Number(viewQuery.get('seat'));
-  if (Number.isInteger(requested) && requested >= 1 && requested <= 50) elements['seat-number'].value = requested;
-  let saved;
-  try { saved = JSON.parse(sessionStorage.getItem('速算华容道-选手')); } catch { /* A seat can be entered manually. */ }
-  if (saved && (!requested || saved.seat === requested)) {
-    elements['seat-number'].value = saved.seat;
-    void joinRoom(saved.seat, saved.token);
-  }
-  elements['seat-form'].addEventListener('submit', event => {
-    event.preventDefault();
-    const number = Number(elements['seat-number'].value);
-    void joinRoom(number, saved?.seat === number ? saved.token : undefined);
-  });
-  elements.reset.addEventListener('click', () => { void sendRoomAction('reset'); });
-}
-
 function installPractice() {
   for (const button of document.querySelectorAll('button[data-mode], button[data-size], button[data-count]')) {
     button.addEventListener('click', () => {
@@ -558,28 +464,22 @@ function installPractice() {
     config.seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
     setup();
   });
-  elements['open-rank'].href = '?view=rank&me=1';
-  elements['room-links'].hidden = !document.body.hasAttribute('data-room-server');
   setup();
   displays.listenRequests(practicePacket);
 }
 
-function animate(now) {
-  if (roomPlayer && roomPacket) {
-    const clock = displays.projectedClock(roomPacket, Date.now() + roomOffset);
-    if (elements.clock.textContent !== clock) elements.clock.textContent = clock;
-  } else if (state && !roomPlayer) {
-    updateTime(now);
-    if (state.wave && state.phase === 'playing') animateWave(now);
-  }
-  requestAnimationFrame(animate);
-}
-
-if (['screen', 'rank', 'host'].includes(view)) {
+if (view === 'screen' || view === 'rank') {
   displays.show(view, elements);
 } else {
-  if (roomPlayer) installRoomSeat();
-  else installPractice();
+  installPractice();
+  const showFlash = displays.createFlashView(elements);
+  function animate(now) {
+    const flashing = state.phase === 'preview';
+    showFlash(flashing ? state.flash : null, flashing ? state.goal : null, now);
+    updateTime(now);
+    if (state.wave && state.phase === 'playing') animateWave(now);
+    requestAnimationFrame(animate);
+  }
   document.addEventListener('keydown', onKeyDown);
   elements.players.addEventListener('animationend', event => {
     if (event.animationName === 'clear') event.target.classList.remove('cleared');

@@ -80,26 +80,6 @@ const displays = (() => {
 
   const seatLabel = number => String(number).padStart(3, '0');
 
-  function connectRoom(onPacket, onError, credentials) {
-    const query = credentials ? '?' + new URLSearchParams(credentials) : '';
-    const events = new EventSource('/api/events' + query);
-    events.onmessage = message => onPacket(JSON.parse(message.data));
-    events.onerror = onError;
-    return events;
-  }
-
-  async function post(path, data, credentials) {
-    const query = credentials ? '?' + new URLSearchParams(credentials) : '';
-    const response = await fetch('/api/' + path + query, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error);
-    return result;
-  }
-
   function publish(packet) {
     channel?.postMessage({ type: 'state', packet });
     try {
@@ -132,17 +112,47 @@ const displays = (() => {
     });
   }
 
+  function createFlashView(elements) {
+    const overlay = elements['flash-overlay'];
+    const figure = elements['flash-figure'];
+    const countdown = elements['flash-countdown'];
+    let lastAt = null;
+    let painted = false;
+
+    return (flash, goal, now) => {
+      const at = flash?.at ?? null;
+      if (at !== lastAt) {
+        lastAt = at;
+        painted = false;
+        figure.replaceChildren();
+        if (flash && goal) {
+          const cross = shape(puzzle.reference, 4);
+          cross.children[6].append(textNode('b', goal.value));
+          figure.append(cross);
+        }
+      }
+      const showCountdown = Boolean(flash && now < flash.at);
+      // A 10 ms window may fall between frames. Paint the next frame before play unlocks.
+      const showFigure = Boolean(flash && goal && now >= flash.at &&
+        (now < flash.until || (!painted && now < flash.answerAt)));
+      overlay.hidden = !showCountdown && !showFigure;
+      figure.hidden = !showFigure;
+      countdown.hidden = !showCountdown;
+      if (showFigure) painted = true;
+      if (showCountdown) {
+        const digit = String(Math.ceil((flash.at - now) / 1000));
+        if (countdown.textContent !== digit) countdown.textContent = digit;
+      }
+    };
+  }
+
   function show(view, elements) {
-    const room = viewQuery.has('room') || view === 'host';
     document.body.dataset.view = view;
     elements['play-view'].hidden = true;
     elements[view + '-view'].hidden = false;
-    const headings = { screen: '速算华容道', rank: '实时排行榜', host: '比赛控制' };
+    const headings = { screen: '速算华容道', rank: '实时排行榜' };
     document.querySelector('h1').textContent = headings[view];
     document.title = headings[view] + ' · 速算华容道';
-    const roomQuery = room ? '&room=1' : '';
-    elements['screen-rank'].href = '?view=rank' + roomQuery;
-    elements['rank-back'].href = '?view=screen' + roomQuery;
     for (const button of document.querySelectorAll('[data-fullscreen]')) {
       button.addEventListener('click', () => {
         if (document.fullscreenElement) document.exitFullscreen();
@@ -151,12 +161,10 @@ const displays = (() => {
     }
 
     let packet;
-    let sourceOffset = 0;
     let currentPage = 0;
     let arenaKey;
     let rankKey;
-    let flashAt;
-    let paintedFlash = false;
+    const showFlash = createFlashView(elements);
     const ownNumber = Number(viewQuery.get('me'));
 
     function paintRank() {
@@ -214,18 +222,6 @@ const displays = (() => {
       } else if (packet.mode === 'memory') {
         const labels = { ready: '准备闪示', preview: '请看大屏', playing: '开始推盘', finished: '本题结束' };
         feature.replaceChildren(textNode('p', labels[packet.phase]));
-        const at = packet.phase === 'preview' ? packet.flash?.at : undefined;
-        if (at !== flashAt) {
-          flashAt = at;
-          paintedFlash = false;
-          const figure = elements['flash-figure'];
-          figure.replaceChildren();
-          if (at && packet.flashGoal) {
-            const cross = shape(puzzle.reference, 4);
-            cross.children[6].append(textNode('b', packet.flashGoal.value));
-            figure.append(cross);
-          }
-        }
       } else {
         const leader = rows[0];
         feature.replaceChildren(textNode('p', '独立计分'),
@@ -248,114 +244,35 @@ const displays = (() => {
     }
 
     function receive(next) {
-      const first = !packet;
       packet = next;
-      sourceOffset = room ? next.now - Date.now() : 0;
       elements['mode-tag'].textContent = puzzle.rules[next.mode].title;
       elements['clock-label'].textContent = puzzle.rules[next.mode].seconds ? '剩余' : '用时';
-      const number = next.rows.length;
-      elements['seat-tag'].textContent = room ? number + ' / ' + next.capacity + ' 人' : number + ' 人练习';
+      elements['seat-tag'].textContent = next.rows.length + ' 人练习';
       if (view === 'screen') paintScreen();
       if (view === 'rank') paintRank();
-      if (view === 'host') {
-        if (first) {
-          elements['host-mode'].value = next.mode;
-          elements['host-size'].value = String(next.size);
-          elements['host-flash-time'].value = next.flashDuration / 1000;
-          elements['host-flash-config'].hidden = next.mode !== 'memory';
-        }
-        elements['host-count'].textContent = '已加入 ' + number + ' / ' + next.capacity + ' 人 · ' + puzzle.rules[next.mode].title + ' · ' + next.size + '×' + next.size;
-        elements['host-status'].textContent = next.status;
-      }
     }
 
-    function disconnected() {
-      const message = '等待比赛连接';
-      if (view === 'screen') elements['screen-status'].textContent = message;
-      if (view === 'host') elements['host-status'].textContent = message;
-      if (view === 'rank') {
-        elements['rank-empty'].hidden = false;
-        elements['rank-empty'].textContent = message;
-      }
-    }
-
-    if (room && location.protocol !== 'file:') {
-      connectRoom(receive, disconnected, view === 'screen' ? { screen: 1 } : undefined);
-    } else if (!room) {
-      listenPractice(receive);
-    }
+    listenPractice(receive);
     if (!packet) {
-      elements['seat-tag'].textContent = '等待比赛';
-      if (view === 'screen') elements['screen-status'].textContent = room ? '等待比赛连接' : '在选手端启动一局练习';
+      elements['seat-tag'].textContent = '等待游戏';
+      if (view === 'screen') elements['screen-status'].textContent = '在游戏页开始一局';
       if (view === 'rank') elements['rank-empty'].hidden = false;
-    }
-
-    if (view === 'host') {
-      elements['host-mode'].addEventListener('change', () => {
-        elements['host-flash-config'].hidden = elements['host-mode'].value !== 'memory';
-      });
-      async function control(action) {
-        const mode = elements['host-mode'].value;
-        const size = Number(elements['host-size'].value);
-        const input = elements['host-flash-time'];
-        const duration = puzzle.flashMilliseconds(input.valueAsNumber);
-        if (mode === 'memory' && duration === null) {
-          elements['host-status'].textContent = '闪示时长请填写 0.01 秒或以上，最多两位小数。';
-          input.focus();
-          return;
-        }
-        if (action === 'start' && (mode !== packet?.mode || size !== packet?.size ||
-          (mode === 'memory' && duration !== packet.flashDuration))) {
-          elements['host-status'].textContent = '请先点「准备新局」应用赛制设置。';
-          return;
-        }
-        try {
-          const result = await post('host', {
-            action, key: elements['host-key'].value, mode, size, flashSeconds: input.valueAsNumber,
-          });
-          receive(result);
-        } catch (error) {
-          elements['host-status'].textContent = error.message;
-        }
-      }
-      elements['host-prepare'].addEventListener('click', () => { void control('prepare'); });
-      elements['host-form'].addEventListener('submit', event => {
-        event.preventDefault();
-        void control('start');
-      });
-    }
-
-    function animateFlash(now) {
-      const overlay = elements['flash-overlay'];
-      const figure = elements['flash-figure'];
-      const countdown = elements['flash-countdown'];
-      const flash = packet.phase === 'preview' ? packet.flash : null;
-      const showCountdown = Boolean(flash && now < flash.at);
-      // If a 10 ms window falls between display frames, paint the next frame before play unlocks.
-      const showFigure = Boolean(flash && packet.flashGoal && now >= flash.at &&
-        (now < flash.until || (!paintedFlash && now < flash.answerAt)));
-      overlay.hidden = !showCountdown && !showFigure;
-      figure.hidden = !showFigure;
-      countdown.hidden = !showCountdown;
-      if (showFigure) paintedFlash = true;
-      if (showCountdown) {
-        const digit = String(Math.ceil((flash.at - now) / 1000));
-        if (countdown.textContent !== digit) countdown.textContent = digit;
-      }
     }
 
     function animate() {
       if (packet) {
-        const now = Date.now() + sourceOffset;
+        const now = Date.now();
         const clock = projectedClock(packet, now);
         if (elements.clock.textContent !== clock) elements.clock.textContent = clock;
         if (view === 'screen' && packet.wave) animateArena(elements['screen-arena'], packet.wave, packet.end ?? now);
-        if (view === 'screen') animateFlash(now);
+        if (view === 'screen') {
+          showFlash(packet.phase === 'preview' ? packet.flash : null, packet.flashGoal, now);
+        }
       }
       requestAnimationFrame(animate);
     }
     requestAnimationFrame(animate);
   }
 
-  return { shape, seatLabel, drawArena, animateArena, projectedClock, connectRoom, post, publish, listenRequests, show };
+  return { shape, drawArena, animateArena, publish, listenRequests, createFlashView, show };
 })();
