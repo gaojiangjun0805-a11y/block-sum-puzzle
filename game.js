@@ -9,6 +9,7 @@ const questionCount = document.querySelector('#question-count');
 const tabs = document.querySelector('#question-tabs');
 const flashOrder = document.querySelector('#flash-order');
 const verify = document.querySelector('#verify');
+const review = document.querySelector('#review');
 const verificationResult = document.querySelector('#verification-result');
 const questionNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'].map(number => `题目${number}`);
 const countdownLength = 3000;
@@ -22,6 +23,8 @@ let size;
 let questions = [];
 let activeIndex = 0;
 let phase = 'ready';
+let canReview = false;
+let reviewing = false;
 let playStartedAt;
 let timerFrame = null;
 let tiles;
@@ -111,6 +114,9 @@ function newQuestions() {
     return { board, center, goal };
   });
   activeIndex = 0;
+  canReview = false;
+  reviewing = false;
+  paintReview();
   verificationResult.hidden = true;
   tabs.hidden = questions.length === 1;
   tabs.replaceChildren(...questions.map((_, index) => {
@@ -121,6 +127,7 @@ function newQuestions() {
       activeIndex = index;
       syncAnswerControls();
       paintBoard();
+      if (reviewing) paintReview();
     });
     return button;
   }));
@@ -135,7 +142,30 @@ function syncAnswerControls() {
   }
   verify.hidden = questions.length === 1;
   verify.disabled = !canAnswer;
+  review.disabled = !canReview || (phase !== 'playing' && phase !== 'finished');
 }
+
+function paintReview() {
+  review.textContent = reviewing ? '收起题目' : '查看题目';
+  review.setAttribute('aria-expanded', String(reviewing));
+  if (reviewing) {
+    screenLabel.hidden = true;
+    showQuestion(activeIndex);
+    flashOrder.textContent = questionNames[activeIndex] + ' · 回看';
+    flashOrder.hidden = false;
+  } else {
+    screenCross.hidden = true;
+    flashOrder.hidden = true;
+    targetValue.textContent = '';
+    screenLabel.hidden = phase === 'playing';
+  }
+}
+
+review.addEventListener('click', () => {
+  if (!canReview || (phase !== 'playing' && phase !== 'finished')) return;
+  reviewing = !reviewing;
+  paintReview();
+});
 
 function showElapsed(milliseconds) {
   const seconds = (Math.max(0, milliseconds) / 1000).toFixed(2);
@@ -179,11 +209,16 @@ function finish() {
   screenLabel.hidden = false;
   screenLabel.textContent = message;
   verificationResult.hidden = true;
+  canReview = true;
+  reviewing = false;
+  paintReview();
   syncAnswerControls();
 }
 
 verify.addEventListener('click', () => {
   if (phase !== 'playing') return;
+  canReview = true;
+  syncAnswerControls();
   const incomplete = questions.flatMap((question, index) =>
     puzzle.solved(question.board, question.goal) ? [] : [questionNames[index]]
   );

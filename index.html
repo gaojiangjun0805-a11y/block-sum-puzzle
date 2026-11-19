@@ -71,7 +71,10 @@
     <div id="board" class="board" role="group" aria-label="4×4 推盘"></div>
     <div class="board-actions">
       <p class="board-note">点击同行或同列的数字，整段滑动。</p>
-      <button class="start" id="verify" type="button" hidden>提交验证</button>
+      <div class="answer-buttons">
+        <button class="secondary" id="review" type="button" aria-controls="screen" aria-expanded="false" disabled>查看题目</button>
+        <button class="start" id="verify" type="button" hidden>提交验证</button>
+      </div>
     </div>
     <p class="verification-result" id="verification-result" role="status" hidden></p>
   </section>

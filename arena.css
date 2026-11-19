@@ -82,7 +82,7 @@ h1 {
 .duration input {
   width: min(100%, 122px);
   min-width: 0;
-  padding: 8px;
+  padding: 8px 5px;
   color: #fff;
   background: #101113;
   border: 1px solid #8d8e91;
@@ -149,6 +149,10 @@ h1 {
 .question-tabs button[aria-pressed="true"] { color: var(--ink); background: var(--yellow); }
 .question-tabs button:disabled { opacity: .7; cursor: default; }
 .board-actions { justify-content: space-between; margin-top: 8px; }
+.board-actions .board-note { flex: 1; min-width: 0; }
+.answer-buttons { display: flex; align-items: center; gap: 6px; }
+.secondary { min-height: 43px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 3px; background: #1b1d20; color: var(--yellow); font-weight: 850; cursor: pointer; white-space: nowrap; }
+.secondary:disabled { opacity: .5; cursor: default; }
 .board-note, .verification-result { color: #c9c9c2; font-size: clamp(11px, 1.85vw, 15px); }
 .verification-result { margin-top: 7px; color: var(--yellow); }
 @media (max-width: 540px) {
