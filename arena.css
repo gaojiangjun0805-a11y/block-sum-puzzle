@@ -130,6 +130,10 @@ h1 {
 .tile.empty::after { content: ""; width: 7%; aspect-ratio: 1; border-radius: 50%; background: #777; }
 .tile.movable { cursor: pointer; }
 .tile.movable:hover, .tile.movable:focus-visible { box-shadow: inset 0 0 0 4px #c39700; }
+.tile.in-frame { background: linear-gradient(155deg, #ffef73, #ffdb00); border-color: #ffec65; }
+.tile.frame-center { box-shadow: inset 0 0 0 3px var(--ink); }
+.tile.empty.in-frame { background: #4c410e; border-style: dashed; }
+.tile.empty.in-frame::after { background: var(--yellow); }
 .tile span { pointer-events: none; }
 .tile span.sliding { animation: slide-in .13s ease-out both; }
 @keyframes slide-in { from { opacity: .5; transform: translate(var(--dx), var(--dy)); } }
@@ -150,6 +154,11 @@ h1 {
 .question-tabs button:disabled { opacity: .7; cursor: default; }
 .board-actions { justify-content: space-between; margin-top: 8px; }
 .board-actions .board-note { flex: 1; min-width: 0; }
+.review-totals { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px 4px; }
+.review-totals > div { display: grid; gap: 2px; }
+.review-totals span { color: #c9c9c2; font-size: 11px; }
+.review-totals strong { color: var(--yellow); font-size: clamp(16px, 4cqi, 21px); line-height: 1.1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.review-totals p { grid-column: 1 / -1; color: #e7d08f; font-size: 11px; line-height: 1.1; }
 .answer-buttons { display: flex; align-items: center; gap: 6px; }
 .secondary { min-height: 43px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 3px; background: #1b1d20; color: var(--yellow); font-weight: 850; cursor: pointer; white-space: nowrap; }
 .secondary:disabled { opacity: .5; cursor: default; }

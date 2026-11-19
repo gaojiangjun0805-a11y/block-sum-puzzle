@@ -70,7 +70,13 @@
     <nav class="question-tabs" id="question-tabs" aria-label="选择答题棋盘" hidden></nav>
     <div id="board" class="board" role="group" aria-label="4×4 推盘"></div>
     <div class="board-actions">
-      <p class="board-note">点击同行或同列的数字，整段滑动。</p>
+      <p class="board-note" id="board-note">点击同行或同列的数字，整段滑动。</p>
+      <div class="review-totals" id="review-totals" aria-live="polite" hidden>
+        <div><span>当前和</span><strong id="review-sum"></strong></div>
+        <div><span>目标</span><strong id="review-target"></strong></div>
+        <div><span>相差</span><strong id="review-difference"></strong></div>
+        <p id="review-empty" hidden>十字架内有空格</p>
+      </div>
       <div class="answer-buttons">
         <button class="secondary" id="review" type="button" aria-controls="screen" aria-expanded="false" disabled>查看题目</button>
         <button class="start" id="verify" type="button" hidden>提交验证</button>

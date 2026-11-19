@@ -10,6 +10,12 @@ const tabs = document.querySelector('#question-tabs');
 const flashOrder = document.querySelector('#flash-order');
 const verify = document.querySelector('#verify');
 const review = document.querySelector('#review');
+const boardNote = document.querySelector('#board-note');
+const reviewTotals = document.querySelector('#review-totals');
+const reviewSum = document.querySelector('#review-sum');
+const reviewTarget = document.querySelector('#review-target');
+const reviewDifference = document.querySelector('#review-difference');
+const reviewEmpty = document.querySelector('#review-empty');
 const verificationResult = document.querySelector('#verification-result');
 const questionNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'].map(number => `题目${number}`);
 const countdownLength = 3000;
@@ -65,7 +71,7 @@ function setupBoard() {
 }
 
 function paintBoard(stride = 0) {
-  const { board } = questions[activeIndex];
+  const { board, center, goal } = questions[activeIndex];
   const name = questions.length > 1 ? questionNames[activeIndex] + ' ' : '';
   boardElement.setAttribute('aria-label', name + size + '×' + size + ' 推盘');
   const blank = board.indexOf(0);
@@ -74,6 +80,8 @@ function paintBoard(stride = 0) {
     const movable = phase === 'playing' && Boolean(puzzle.slideStride(blank, index, size));
     tile.classList.toggle('empty', !value);
     tile.classList.toggle('movable', movable);
+    tile.classList.toggle('in-frame', reviewing && goal.indices.includes(index));
+    tile.classList.toggle('frame-center', reviewing && index === center);
     tile.setAttribute('aria-disabled', String(!movable));
     tile.tabIndex = movable ? 0 : -1;
     tile.setAttribute('aria-label', value ? String(value) : '空格');
@@ -92,6 +100,14 @@ function paintBoard(stride = 0) {
       }
       tile.append(face);
     }
+  }
+  if (reviewing) {
+    const sum = goal.indices.reduce((total, index) => total + board[index], 0);
+    const difference = goal.value - sum;
+    reviewSum.textContent = sum;
+    reviewTarget.textContent = goal.value;
+    reviewDifference.textContent = difference > 0 ? '少' + difference : difference < 0 ? '多' + -difference : '0';
+    reviewEmpty.hidden = goal.indices.every(index => board[index] !== 0);
   }
 }
 
@@ -148,6 +164,8 @@ function syncAnswerControls() {
 function paintReview() {
   review.textContent = reviewing ? '收起题目' : '查看题目';
   review.setAttribute('aria-expanded', String(reviewing));
+  boardNote.hidden = reviewing;
+  reviewTotals.hidden = !reviewing;
   if (reviewing) {
     screenLabel.hidden = true;
     showQuestion(activeIndex);
@@ -165,6 +183,7 @@ review.addEventListener('click', () => {
   if (!canReview || (phase !== 'playing' && phase !== 'finished')) return;
   reviewing = !reviewing;
   paintReview();
+  paintBoard();
 });
 
 function showElapsed(milliseconds) {
