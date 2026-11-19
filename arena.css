@@ -76,6 +76,8 @@ h1 {
 .settings label { font-weight: 850; }
 .board-settings { display: flex; align-items: center; gap: 8px; }
 .board-settings select { padding: 4px; color: #fff; background: #101113; border: 1px solid #8d8e91; border-radius: 3px; }
+.timing-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.timing-field { display: grid; gap: 9px; min-width: 0; }
 .duration { display: flex; align-items: center; gap: 8px; color: #d0d1d2; }
 .duration input {
   width: min(100%, 122px);
@@ -156,6 +158,8 @@ h1 {
   .board-settings label { white-space: nowrap; }
   .board-settings select { padding-inline: 2px; font-size: 12px; }
   .duration { gap: 4px; }
+  .timing-fields { grid-template-columns: minmax(0, 1fr); }
+  .timing-field { gap: 6px; }
   .duration input { width: 67px; font-size: 15px; }
   .time-readout { font-size: 11px; gap: 4px; }
   .status { font-size: 11px; }

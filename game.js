@@ -3,6 +3,7 @@
 const boardElement = document.querySelector('#board');
 const form = document.querySelector('#settings');
 const duration = document.querySelector('#duration');
+const questionGap = document.querySelector('#question-gap');
 const boardSize = document.querySelector('#board-size');
 const questionCount = document.querySelector('#question-count');
 const tabs = document.querySelector('#question-tabs');
@@ -11,7 +12,6 @@ const verify = document.querySelector('#verify');
 const verificationResult = document.querySelector('#verification-result');
 const questionNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'].map(number => `题目${number}`);
 const countdownLength = 3000;
-const flashGap = 80;
 const start = document.querySelector('#start');
 const screenLabel = document.querySelector('#screen-label');
 const screenCross = document.querySelector('#screen-cross');
@@ -96,8 +96,14 @@ function newQuestions() {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   const random = puzzle.randomFrom(seed);
   const used = questions.map(question => question.goal);
+  let previousCenter = questions.at(-1)?.board.length === size ** 2 ? questions.at(-1).center : null;
   questions = Array.from({ length: Number(questionCount.value) }, () => {
-    const center = Math.floor(random() * size ** 2);
+    const centers = Array.from({ length: size ** 2 }, (_, index) => index).filter(index =>
+      previousCenter === null || (Math.floor(index / size) !== Math.floor(previousCenter / size) &&
+        index % size !== previousCenter % size)
+    );
+    const center = centers[Math.floor(random() * centers.length)];
+    previousCenter = center;
     const board = puzzle.newBoard(size);
     const frame = puzzle.frameAt(center, size);
     const goal = puzzle.generateGoal(board, 6, random, used, size, [frame]);
@@ -206,6 +212,7 @@ function beginAnswering() {
   playStartedAt = performance.now();
   timerFrame = requestAnimationFrame(updateTimer);
   duration.disabled = false;
+  questionGap.disabled = false;
   boardSize.disabled = false;
   questionCount.disabled = false;
   start.disabled = false;
@@ -223,6 +230,11 @@ form.addEventListener('submit', event => {
     status.textContent = '请输入 0.01 秒以上，最多两位小数。';
     return;
   }
+  const flashGap = questionGap.valueAsNumber === 0 ? 0 : puzzle.flashMilliseconds(questionGap.valueAsNumber);
+  if (flashGap === null) {
+    status.textContent = '题目间隔请输入 0 秒以上，最多两位小数。';
+    return;
+  }
   const restart = phase !== 'ready';
   phase = 'preview';
   if (restart) newQuestions();
@@ -230,6 +242,7 @@ form.addEventListener('submit', event => {
   stopTimer();
   showElapsed(0);
   duration.disabled = true;
+  questionGap.disabled = true;
   boardSize.disabled = true;
   questionCount.disabled = true;
   start.disabled = true;
@@ -251,15 +264,22 @@ form.addEventListener('submit', event => {
       showQuestion(index);
       hideAt = now + milliseconds;
     } else if (now >= hideAt) {
-      screenCross.hidden = true;
-      flashOrder.hidden = true;
       index += 1;
       if (index === questions.length) {
+        screenCross.hidden = true;
+        flashOrder.hidden = true;
         beginAnswering();
         return;
       }
-      showAt = now + flashGap;
-      hideAt = null;
+      if (flashGap === 0) {
+        showQuestion(index);
+        hideAt = now + milliseconds;
+      } else {
+        screenCross.hidden = true;
+        flashOrder.hidden = true;
+        showAt = now + flashGap;
+        hideAt = null;
+      }
     }
 
     requestAnimationFrame(paint);
