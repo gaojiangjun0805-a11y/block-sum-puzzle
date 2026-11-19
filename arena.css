@@ -132,9 +132,8 @@ h1 {
 .tile span.sliding { animation: slide-in .13s ease-out both; }
 @keyframes slide-in { from { opacity: .5; transform: translate(var(--dx), var(--dy)); } }
 .question-tabs, .board-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.question-tabs { margin-bottom: 6px; }
+.question-tabs { display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); margin-bottom: 6px; }
 .question-tabs button {
-  flex: 1;
   min-height: 35px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -142,6 +141,7 @@ h1 {
   background: #1b1d20;
   color: #f5f5ee;
   font-weight: 850;
+  white-space: nowrap;
   cursor: pointer;
 }
 .question-tabs button[aria-pressed="true"] { color: var(--ink); background: var(--yellow); }

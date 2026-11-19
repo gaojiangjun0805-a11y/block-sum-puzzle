@@ -9,7 +9,7 @@ const tabs = document.querySelector('#question-tabs');
 const flashOrder = document.querySelector('#flash-order');
 const verify = document.querySelector('#verify');
 const verificationResult = document.querySelector('#verification-result');
-const questionNames = ['题目一', '题目二', '题目三'];
+const questionNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'].map(number => `题目${number}`);
 const countdownLength = 3000;
 const flashGap = 80;
 const start = document.querySelector('#start');
