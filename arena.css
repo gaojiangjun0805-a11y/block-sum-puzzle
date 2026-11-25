@@ -92,6 +92,8 @@ h1 {
 }
 .start { min-height: 43px; padding: 5px 8px; border: 0; border-radius: 3px; background: var(--yellow); color: var(--ink); font-weight: 900; cursor: pointer; }
 .start:disabled { opacity: .65; cursor: default; }
+.test-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.test-buttons button { padding-inline: 3px; white-space: nowrap; }
 .time-readout { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 7px; color: #d0d1d2; font-size: 13px; }
 .time-readout time { color: var(--yellow); font: italic 950 clamp(18px, 3vw, 34px)/1 var(--digits); font-variant-numeric: tabular-nums; }
 .status { min-height: 2.7em; color: #d1d1ca; font-size: 13px; line-height: 1.45; }
@@ -172,6 +174,7 @@ h1 {
   .board-settings select { padding-inline: 2px; font-size: 12px; }
   .duration { gap: 4px; }
   .timing-fields { grid-template-columns: minmax(0, 1fr); }
+  .test-buttons { grid-template-columns: minmax(0, 1fr); }
   .timing-field { gap: 6px; }
   .duration input { width: 67px; font-size: 15px; }
   .time-readout { font-size: 11px; gap: 4px; }

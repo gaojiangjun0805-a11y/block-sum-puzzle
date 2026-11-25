@@ -20,6 +20,7 @@ const verificationResult = document.querySelector('#verification-result');
 const questionNames = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'].map(number => `题目${number}`);
 const countdownLength = 3000;
 const start = document.querySelector('#start');
+const replay = document.querySelector('#replay');
 const screenLabel = document.querySelector('#screen-label');
 const screenCross = document.querySelector('#screen-cross');
 const elapsed = document.querySelector('#elapsed');
@@ -31,6 +32,7 @@ let activeIndex = 0;
 let phase = 'ready';
 let canReview = false;
 let reviewing = false;
+let hasShownQuestions = false;
 let playStartedAt;
 let timerFrame = null;
 let tiles;
@@ -130,6 +132,7 @@ function newQuestions() {
     return { board, center, goal };
   });
   activeIndex = 0;
+  hasShownQuestions = false;
   canReview = false;
   reviewing = false;
   paintReview();
@@ -159,6 +162,7 @@ function syncAnswerControls() {
   verify.hidden = questions.length === 1;
   verify.disabled = !canAnswer;
   review.disabled = !canReview || (phase !== 'playing' && phase !== 'finished');
+  replay.disabled = !hasShownQuestions || (phase !== 'playing' && phase !== 'finished');
 }
 
 function paintReview() {
@@ -260,24 +264,37 @@ function showQuestion(index) {
   screenCross.hidden = false;
 }
 
-function beginAnswering() {
+function beginAnswering(resumePhase = 'playing', elapsedBeforeReplay = 0) {
   targetValue.textContent = '';
-  phase = 'playing';
-  playStartedAt = performance.now();
-  timerFrame = requestAnimationFrame(updateTimer);
+  phase = resumePhase;
+  hasShownQuestions = true;
+  if (phase === 'playing') {
+    playStartedAt = performance.now() - elapsedBeforeReplay;
+    timerFrame = requestAnimationFrame(updateTimer);
+  }
   duration.disabled = false;
   questionGap.disabled = false;
   boardSize.disabled = false;
   questionCount.disabled = false;
   start.disabled = false;
-  start.textContent = questions.length === 1 ? '下一题' : '下一组';
-  status.textContent = '开始推盘';
+  start.textContent = '开始测试';
+  status.textContent = phase === 'finished' ? (questions.length === 1 ? '答对了' : '全部答对了') : '开始推盘';
+  screenLabel.textContent = status.textContent;
+  screenLabel.hidden = phase !== 'finished';
   syncAnswerControls();
   paintBoard();
 }
 
 form.addEventListener('submit', event => {
   event.preventDefault();
+  flashQuestions();
+});
+
+replay.addEventListener('click', () => {
+  if (hasShownQuestions && (phase === 'playing' || phase === 'finished')) flashQuestions(true);
+});
+
+function flashQuestions(isReplay = false) {
   if (phase === 'preview') return;
   const milliseconds = puzzle.flashMilliseconds(duration.valueAsNumber);
   if (milliseconds === null) {
@@ -289,12 +306,19 @@ form.addEventListener('submit', event => {
     status.textContent = '题目间隔请输入 0 秒以上，最多两位小数。';
     return;
   }
-  const restart = phase !== 'ready';
+  const resumePhase = isReplay ? phase : 'playing';
+  const elapsedBeforeReplay = isReplay && phase === 'playing' ? performance.now() - playStartedAt : 0;
+  const restart = !isReplay && phase !== 'ready';
   phase = 'preview';
   if (restart) newQuestions();
-  else syncAnswerControls();
+  else {
+    reviewing = false;
+    paintReview();
+    syncAnswerControls();
+  }
   stopTimer();
-  showElapsed(0);
+  if (!isReplay) showElapsed(0);
+  else if (resumePhase === 'playing') showElapsed(elapsedBeforeReplay);
   duration.disabled = true;
   questionGap.disabled = true;
   boardSize.disabled = true;
@@ -322,7 +346,7 @@ form.addEventListener('submit', event => {
       if (index === questions.length) {
         screenCross.hidden = true;
         flashOrder.hidden = true;
-        beginAnswering();
+        beginAnswering(resumePhase, elapsedBeforeReplay);
         return;
       }
       if (flashGap === 0) {
@@ -339,7 +363,7 @@ form.addEventListener('submit', event => {
     requestAnimationFrame(paint);
   }
   requestAnimationFrame(paint);
-});
+}
 
 const directions = { ArrowLeft: [0, 1], ArrowRight: [0, -1], ArrowUp: [1, 0], ArrowDown: [-1, 0] };
 document.addEventListener('keydown', event => {
